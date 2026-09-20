@@ -293,6 +293,9 @@ pub fn theme() -> Value {
         json!({})
     }
 }
+fn panel_extent(request: i64, logical: f64, margin: f64, minimum: i64, maximum: i64) -> i64 {
+    (request.clamp(minimum, maximum) as f64).min((logical - margin).max(1.0)) as i64
+}
 /// Position only this worker's parent window; never changes global compositor config.
 pub fn float_panel(width: i64, height: i64) -> Result<String, String> {
     let pid = unsafe { libc::getppid() };
@@ -320,8 +323,8 @@ pub fn float_panel(width: i64, height: i64) -> Result<String, String> {
         if m["transform"].as_i64().unwrap_or(0) % 2 == 1 {
             std::mem::swap(&mut mw, &mut mh);
         }
-        let w = (width.clamp(850, 2400) as f64).min((mw - 40.0).max(850.0)) as i64;
-        let h = (height.clamp(560, 1600) as f64).min((mh - 60.0).max(560.0)) as i64;
+        let w = panel_extent(width, mw, 40.0, 850, 2400);
+        let h = panel_extent(height, mh, 60.0, 560, 1600);
         let x = m["x"].as_i64().unwrap_or(0) + (mw as i64 - w) / 2;
         let y = m["y"].as_i64().unwrap_or(0) + (mh as i64 - h) / 2;
         for cmd in [
@@ -339,6 +342,12 @@ pub fn float_panel(width: i64, height: i64) -> Result<String, String> {
 #[cfg(test)]
 mod tests {
     use super::*;
+    #[test]
+    fn floating_extent_fits_small_logical_monitors() {
+        assert_eq!(panel_extent(1120, 800.0, 40.0, 850, 2400), 760);
+        assert_eq!(panel_extent(760, 540.0, 60.0, 560, 1600), 480);
+        assert_eq!(panel_extent(9999, 3840.0, 40.0, 850, 2400), 2400);
+    }
     fn p(pid: i32, parent: i32, name: &str) -> Process {
         Process {
             id: Identity { pid, start: 1 },

@@ -1,3 +1,4 @@
+mod bounded;
 mod command;
 mod desktop;
 mod desktop_entry;
@@ -6,6 +7,7 @@ mod history;
 mod manage;
 mod metrics;
 mod process;
+mod slow;
 mod storage;
 use serde_json::{json, Value};
 use std::io::{self, BufRead, Read, Write};
@@ -19,10 +21,8 @@ fn main() {
     let mut history = history::History::new();
     let mut cache = (String::new(), std::time::Instant::now(), json!({}));
     if std::env::args().any(|a| a == "--once") {
-        println!(
-            "{}",
-            snapshot(&mut sampler, &desktop, &mut history, &mut cache, "apps")
-        );
+        let value = snapshot(&mut sampler, &desktop, &mut history, &mut cache, "apps");
+        let _ = write_response(&mut io::stdout(), &value);
         return;
     }
     let stdin = io::stdin();
@@ -107,10 +107,7 @@ fn main() {
             },
             Err(_) => json!({"kind":"error","message":"Malformed request"}),
         };
-        if writeln!(stdout, "{response}")
-            .and_then(|_| stdout.flush())
-            .is_err()
-        {
+        if write_response(&mut stdout, &response).is_err() {
             break;
         }
     }
@@ -205,6 +202,22 @@ fn action(req: &Value, history: &mut history::History, desktop: &desktop::Deskto
     }
 }
 
+// Leave headroom below the GUI's 32 MiB framing cap. Serialize into a
+// bounded buffer before writing so a rejected payload never corrupts framing.
+const RESPONSE_LIMIT: usize = 16 * 1024 * 1024;
+fn write_response(output: &mut impl Write, response: &Value) -> io::Result<()> {
+    let mut buffer = bounded::Buffer::new(RESPONSE_LIMIT);
+    if serde_json::to_writer(&mut buffer, response).is_err() {
+        buffer = bounded::Buffer::new(RESPONSE_LIMIT);
+        serde_json::to_writer(
+            &mut buffer,
+            &json!({"kind":"error", "message":"Monitoring response exceeds 16 MiB. Last complete sample retained; reduce the workload or inspection size."}),
+        )?;
+    }
+    output.write_all(&buffer.bytes)?;
+    output.write_all(b"\n")?;
+    output.flush()
+}
 const REQUEST_LIMIT: u64 = 1024 * 1024;
 fn request_line(input: &mut impl BufRead) -> io::Result<Option<String>> {
     let mut line = String::new();
@@ -217,6 +230,20 @@ fn request_line(input: &mut impl BufRead) -> io::Result<Option<String>> {
 #[cfg(test)]
 mod protocol_tests {
     use super::*;
+    #[test]
+    fn oversized_response_is_framed_error_and_next_response_survives() {
+        let mut output = Vec::new();
+        write_response(&mut output, &json!({"data":"x".repeat(RESPONSE_LIMIT)})).unwrap();
+        write_response(&mut output, &json!({"kind":"snapshot"})).unwrap();
+        let rows: Vec<Value> = String::from_utf8(output)
+            .unwrap()
+            .lines()
+            .map(|line| serde_json::from_str(line).unwrap())
+            .collect();
+        assert_eq!(rows.len(), 2);
+        assert_eq!(rows[0]["kind"], "error");
+        assert_eq!(rows[1]["kind"], "snapshot");
+    }
     #[test]
     fn line_limit_applies_before_allocating_entire_request() {
         let mut input = io::Cursor::new(vec![b'x'; REQUEST_LIMIT as usize * 3]);

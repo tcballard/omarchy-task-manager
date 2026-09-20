@@ -72,6 +72,7 @@ public:
   Q_INVOKABLE void refresh();
   Q_INVOKABLE QVariantMap prepareManagement(const QVariantMap &request);
   Q_INVOKABLE void inspect();
+  Q_INVOKABLE void dismissInspection();
   Q_INVOKABLE void loadLogs();
   Q_INVOKABLE void launch(const QString &command);
   Q_INVOKABLE void openExecutable();
@@ -94,6 +95,7 @@ public:
   Q_INVOKABLE void savePreference(const QString &key, const QVariant &value);
 signals:
   void inspectionChanged();
+  void inspectionRequested();
   void snapshotChanged();
   void preferencesChanged();
   void selectionChanged();
@@ -101,6 +103,11 @@ signals:
   void busyChanged();
 
 private:
+  friend class BridgeTest;
+  void handleResponse(const QVariantMap &);
+  void beginInspection(const QVariantMap &, const QString &);
+  void failInspection(const QString &);
+  bool m_inspecting = false, m_inspectionPending = false;
   bool send(const QVariantMap &);
   static bool validPage(const QString &);
   void receive();

@@ -6,6 +6,35 @@
 class BridgeTest : public QObject {
   Q_OBJECT
 private slots:
+  void inspectionErrorsAndDismissal() {
+    Bridge bridge;
+    QTRY_VERIFY_WITH_TIMEOUT(!bridge.snapshot().isEmpty(), 8000);
+    bridge.setPaused(true);
+    QTRY_VERIFY(!bridge.busy());
+    QSignalSpy opened(&bridge, &Bridge::inspectionRequested);
+    bridge.beginInspection(
+        {{"op", "inspect"}, {"id", QVariantMap{{"pid", -1}, {"start", 0}}}},
+        "Loading");
+    QCOMPARE(opened.count(), 1);
+    QTRY_VERIFY(!bridge.busy());
+    QVERIFY(bridge.inspection().value("message").toString() != "Loading");
+    bridge.beginInspection(
+        {{"op", "inspect"}, {"id", QVariantMap{{"pid", -1}, {"start", 0}}}},
+        "Loading");
+    bridge.dismissInspection();
+    QTRY_VERIFY(!bridge.busy());
+    QCOMPARE(opened.count(), 2);
+    // A late successful reply cannot update or reopen dismissed details.
+    bridge.m_inspectionPending = true;
+    bridge.handleResponse(
+        {{"kind", "inspection"}, {"data", QVariantMap{{"logs", "late"}}}});
+    QVERIFY(!bridge.inspection().contains("logs"));
+    QCOMPARE(opened.count(), 2);
+    bridge.m_inspecting = bridge.m_inspectionPending = true;
+    bridge.failInspection("Monitoring worker exited");
+    QCOMPARE(bridge.inspection().value("message").toString(),
+             QString("Monitoring worker exited"));
+  }
   void modelResize() {
     Rows rows;
     rows.replace({QVariantMap{{"key", "a"}}, QVariantMap{{"key", "b"}}});

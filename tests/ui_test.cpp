@@ -10,6 +10,59 @@
 class UiTest : public QObject {
   Q_OBJECT
 private slots:
+  void smallPanelAndMalformedTheme() {
+    Bridge backend;
+    QQmlApplicationEngine engine;
+    engine.rootContext()->setContextProperty("backend", &backend);
+    engine.load(QUrl("qrc:/ui/Main.qml"));
+    QVERIFY(!engine.rootObjects().isEmpty());
+    auto window = qobject_cast<QQuickWindow *>(engine.rootObjects().first());
+    QVERIFY(window);
+    QTRY_VERIFY_WITH_TIMEOUT(!backend.snapshot().isEmpty(), 8000);
+    backend.setPage("processes");
+    window->setProperty("availableScreenWidth", 640);
+    window->setProperty("availableScreenHeight", 480);
+    window->resize(640, 480);
+    window->setProperty("tokens", QVariantMap{{"font.base-size", "broken"},
+                                              {"font.body", "Infinity"}});
+    QCOMPARE(window->property("baseSize").toDouble(), 12.0);
+    QCOMPARE(window->property("layoutScale").toDouble(), 1.0);
+    window->setProperty("tokens", QVariantMap{{"font.base-size", 24}});
+    QCOMPARE(window->property("layoutScale").toDouble(), 2.0);
+    window->setProperty("showOwner", true);
+    window->setProperty("showThreads", true);
+    auto workspace = window->findChild<QObject *>("workspaceScroll");
+    auto table = window->findChild<QQuickItem *>("processTableViewport");
+    QVERIFY(workspace && table);
+    QTRY_VERIFY(table->property("contentWidth").toDouble() > table->width());
+    QVERIFY(workspace->property("contentWidth").toDouble() >= 1700);
+    QVERIFY(workspace->property("contentHeight").toDouble() >= 1120);
+    const double end =
+        table->property("contentWidth").toDouble() - table->width();
+    table->setProperty("contentX", end);
+    QCOMPARE(table->property("contentX").toDouble(), end);
+    auto close = window->findChild<QQuickItem *>("closePanelButton");
+    auto scroll = window->findChild<QObject *>("workspaceHorizontalScroll");
+    QVERIFY(close && scroll);
+    QVERIFY(close->mapToScene(QPointF(close->width(), 0)).x() <= 640);
+    QVERIFY(scroll->property("visible").toBool());
+    QCOMPARE(window->width(), 640);
+    QCOMPARE(window->height(), 480);
+    window->setProperty(
+        "tokens", QVariantMap{{"font.base-size", -100}, {"font.body", -100}});
+    QCOMPARE(window->property("baseSize").toDouble(), 8.0);
+    QVERIFY(window->property("layoutScale").toDouble() >= 1.0);
+    window->setProperty(
+        "tokens", QVariantMap{{"font.base-size", 1e100}, {"font.body", 1e100}});
+    QCOMPARE(window->property("baseSize").toDouble(), 32.0);
+    QCOMPARE(window->property("layoutScale").toDouble(), 4.0);
+    backend.setPage("history");
+    auto management =
+        window->findChild<QQuickItem *>("managementTableViewport");
+    QVERIFY(management);
+    QTRY_VERIFY(management->property("contentWidth").toDouble() >=
+                management->width());
+  }
   void keyboardAndConfirmedAction() {
     QProcess child;
     child.start("sleep", {"30"});

@@ -67,13 +67,8 @@ pub fn read_one(pid: i32) -> io::Result<Process> {
         .find_map(|l| l.strip_prefix("Uid:"))
         .and_then(|s| s.split_whitespace().next())
         .ok_or_else(|| io::Error::other("missing owner"))?;
-    let command = fs::read(format!("{base}/cmdline"))
-        .map(|v| {
-            String::from_utf8_lossy(&v)
-                .replace('\0', " ")
-                .trim()
-                .to_string()
-        })
+    let command = crate::bounded::text(format!("{base}/cmdline"), 16 * 1024)
+        .map(|v| v.replace('\0', " ").trim().to_string())
         .unwrap_or_default();
     let io = fs::read_to_string(format!("{base}/io")).unwrap_or_default();
     let counter = |key: &str| {
@@ -264,15 +259,24 @@ pub fn tune(id: &Identity, nice: Option<i32>, cpus: Option<Vec<usize>>) -> Resul
             }
         }
     }
-    let tasks: Vec<_> = fs::read_dir(format!("/proc/{}/task", id.pid))
+    if nice.is_none() && cpus.is_none() {
+        return Err("No setting supplied".into());
+    }
+    // Keep enumeration/identity errors as results, including threads that exit
+    // before their initial read. Never hide mutations completed earlier.
+    let tasks: Vec<Result<Process, String>> = fs::read_dir(format!("/proc/{}/task", id.pid))
         .map_err(|e| e.to_string())?
-        .filter_map(Result::ok)
-        .filter_map(|e| e.file_name().to_str()?.parse::<i32>().ok())
-        .filter_map(|tid| read_one(tid).ok())
+        .map(|entry| {
+            let entry = entry.map_err(|e| e.to_string())?;
+            let tid = entry
+                .file_name()
+                .to_string_lossy()
+                .parse::<i32>()
+                .map_err(|e| e.to_string())?;
+            read_one(tid).map_err(|e| format!("{tid}: {e}"))
+        })
         .collect();
-    let mut success = 0;
-    let mut failures = Vec::new();
-    for t in tasks {
+    tune_each(tasks, |t| {
         let current = read_one(t.id.pid).map_err(|e| e.to_string())?;
         validate_target(&current, &t.id, leader.uid, &HashSet::new())?;
         if read_one(id.pid).map_err(|_| "Process exited")?.id != *id {
@@ -281,21 +285,41 @@ pub fn tune(id: &Identity, nice: Option<i32>, cpus: Option<Vec<usize>>) -> Resul
         let r = unsafe {
             if let Some(n) = nice {
                 libc::setpriority(libc::PRIO_PROCESS, t.id.pid as u32, n)
-            } else if cpus.is_some() {
-                libc::sched_setaffinity(t.id.pid, std::mem::size_of::<libc::cpu_set_t>(), &set)
             } else {
-                return Err("No setting supplied".into());
+                libc::sched_setaffinity(t.id.pid, std::mem::size_of::<libc::cpu_set_t>(), &set)
             }
         };
         if r == 0 {
-            success += 1;
+            Ok(())
         } else {
-            failures.push(format!("{}: {}", t.id.pid, io::Error::last_os_error()));
+            Err(io::Error::last_os_error().to_string())
+        }
+    })
+}
+fn tune_each<T>(
+    tasks: Vec<Result<T, String>>,
+    mut apply: impl FnMut(T) -> Result<(), String>,
+) -> Result<String, String> {
+    if tasks.is_empty() {
+        return Err("No threads available; nothing was changed".into());
+    }
+    let mut success = 0;
+    let mut failed = 0;
+    let mut failures = Vec::new();
+    for task in tasks {
+        match task.and_then(&mut apply) {
+            Ok(()) => success += 1,
+            Err(error) => {
+                failed += 1;
+                if failures.len() < 8 {
+                    failures.push(error);
+                }
+            }
         }
     }
-    if !failures.is_empty() {
+    if failed > 0 {
         Err(format!(
-            "Updated {success} threads; failures: {}",
+            "Updated {success} threads; {failed} failed (first errors): {}",
             failures.join("; ")
         ))
     } else {
@@ -304,9 +328,30 @@ pub fn tune(id: &Identity, nice: Option<i32>, cpus: Option<Vec<usize>>) -> Resul
         ))
     }
 }
+
 #[cfg(test)]
 mod tests {
     use super::*;
+    #[test]
+    fn tuning_reports_partial_changes_and_continues_after_exits() {
+        let mut applied = Vec::new();
+        let result = tune_each(
+            vec![Ok(1), Err("thread exited".into()), Ok(2), Ok(3)],
+            |tid| {
+                if tid == 2 {
+                    return Err("permission denied".into());
+                }
+                applied.push(tid);
+                Ok(())
+            },
+        )
+        .unwrap_err();
+        assert_eq!(applied, vec![1, 3]);
+        assert!(result.contains("Updated 2 threads; 2 failed"));
+        assert!(result.contains("thread exited"));
+        assert!(result.contains("permission denied"));
+        assert!(tune_each(Vec::<Result<(), String>>::new(), |_| Ok(())).is_err());
+    }
     #[test]
     fn names_can_contain_parentheses() {
         let s = format!("12 (a ) b) S {}", vec!["0"; 21].join(" "));

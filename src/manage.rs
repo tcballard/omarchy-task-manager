@@ -272,12 +272,18 @@ pub fn inspect(id: &Identity) -> Result<Value, String> {
     }
     let base = format!("/proc/{}", id.pid);
     let mut files = Vec::new();
-    for f in fs::read_dir(format!("{base}/fd"))
+    let mut truncated = false;
+    for (index, f) in fs::read_dir(format!("{base}/fd"))
         .into_iter()
         .flatten()
         .filter_map(Result::ok)
-        .take(2048)
+        .take(257)
+        .enumerate()
     {
+        if index == 256 {
+            truncated = true;
+            break;
+        }
         if let Ok(dest) = fs::read_link(f.path()) {
             files.push(format!(
                 "{} → {}",
@@ -286,21 +292,34 @@ pub fn inspect(id: &Identity) -> Result<Value, String> {
             ));
         }
     }
-    let stat = fs::read_to_string(format!("{base}/status")).unwrap_or_default();
+    let stat = crate::bounded::text(format!("{base}/status"), 64 * 1024).unwrap_or_default();
     let cwd = fs::read_link(format!("{base}/cwd"))
         .map(|p| p.display().to_string())
         .unwrap_or_default();
     let exe = fs::read_link(format!("{base}/exe"))
         .map(|p| p.display().to_string())
         .unwrap_or_default();
-    let cgroup = fs::read_to_string(format!("{base}/cgroup")).unwrap_or_default();
-    let maps = fs::read_to_string(format!("{base}/maps")).unwrap_or_default();
-    let threads:Vec<_>=fs::read_dir(format!("{base}/task")).into_iter().flatten().filter_map(Result::ok).map(|e|{let p=e.path();json!({"tid":e.file_name().to_string_lossy(),"name":fs::read_to_string(p.join("comm")).unwrap_or_default().trim(),"wait":fs::read_to_string(p.join("wchan")).unwrap_or_default().trim(),"status":fs::read_to_string(p.join("status")).unwrap_or_default()})}).collect();
+    let cgroup = crate::bounded::text(format!("{base}/cgroup"), 64 * 1024).unwrap_or_default();
+    let maps = crate::bounded::text(format!("{base}/maps"), 512 * 1024).unwrap_or_default();
+    let mut threads: Vec<_> = fs::read_dir(format!("{base}/task"))
+        .into_iter()
+        .flatten()
+        .filter_map(Result::ok)
+        .take(513)
+        .map(|e| {
+            let p = e.path();
+            json!({"tid":e.file_name().to_string_lossy(),
+                "name":crate::bounded::text(p.join("comm"), 1024).unwrap_or_default().trim(),
+                "wait":crate::bounded::text(p.join("wchan"), 1024).unwrap_or_default().trim()})
+        })
+        .collect();
+    truncated |= threads.len() > 512;
+    threads.truncate(512);
     if process::read_one(id.pid).map_err(|_| "Process exited")?.id != *id {
         return Err("Process changed during inspection".into());
     }
     Ok(
-        json!({"process":p,"executable":exe,"cwd":cwd,"status":stat,"cgroup":cgroup,"files":files,"maps":maps,"threads":threads,"note":"Read permissions may hide files or memory maps. No process memory is copied."}),
+        json!({"process":p,"executable":exe,"cwd":cwd,"status":stat,"cgroup":cgroup,"files":files,"maps":maps,"threads":threads,"note":format!("{}Read permissions may hide files or memory maps. No process memory is copied.", if truncated { "Lists truncated to 256 files / 512 threads. " } else { "" })}),
     )
 }
 pub fn dump(id: &Identity) -> Result<String, String> {
@@ -356,6 +375,23 @@ pub fn dump(id: &Identity) -> Result<String, String> {
 #[cfg(test)]
 mod tests {
     use super::*;
+    #[test]
+    fn large_file_inventory_is_bounded_and_disclosed() {
+        let handles: Vec<_> = (0..300)
+            .map(|_| fs::File::open("/dev/null").unwrap())
+            .collect();
+        let id = process::read_one(std::process::id() as i32).unwrap().id;
+        let data = inspect(&id).unwrap();
+        assert!(data["files"].as_array().unwrap().len() <= 256);
+        assert!(data["files"].as_array().unwrap().len() >= 200);
+        assert!(data["note"].as_str().unwrap().contains("truncated"));
+        assert!(data["threads"]
+            .as_array()
+            .unwrap()
+            .iter()
+            .all(|t| t.get("status").is_none()));
+        drop(handles);
+    }
     #[test]
     fn startup_override_keeps_actions() {
         let s="[Desktop Entry]\nName=A\nHidden=false\nExec=thing\n[Desktop Action X]\nHidden=false\nExec=other\n";
