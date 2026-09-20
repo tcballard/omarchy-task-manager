@@ -188,11 +188,12 @@ pub fn validate_target(
     if p.uid != uid {
         return Err("Only your own processes can be controlled".into());
     }
-    if protected.contains(&id.pid) {
+    if protected.contains(&id.pid) || critical(p) {
         return Err("This process is required by the desktop or monitor".into());
     }
     Ok(())
 }
+#[cfg(test)]
 pub fn signal(id: &Identity, force: bool) -> Result<String, String> {
     send_signal(id, if force { libc::SIGKILL } else { libc::SIGTERM })
 }
@@ -200,6 +201,18 @@ pub fn send_signal(id: &Identity, sig: i32) -> Result<String, String> {
     if ![libc::SIGTERM, libc::SIGKILL, libc::SIGSTOP, libc::SIGCONT].contains(&sig) {
         return Err("Invalid signal".into());
     }
+    send_checked(id, sig, &protected_ids(&list()))
+}
+/// One protection snapshot per fixed group; identities/owners are checked per signal.
+/// Avoid scanning all of procfs once for every member of a large process tree.
+pub fn signal_batch(ids: &[Identity], force: bool) -> Vec<Result<String, String>> {
+    let protected = protected_ids(&list());
+    let sig = if force { libc::SIGKILL } else { libc::SIGTERM };
+    ids.iter()
+        .map(|id| send_checked(id, sig, &protected))
+        .collect()
+}
+fn send_checked(id: &Identity, sig: i32, protected: &HashSet<i32>) -> Result<String, String> {
     // Pin the kernel process before checking /proc, then send through that descriptor.
     let fd = unsafe { libc::syscall(libc::SYS_pidfd_open, id.pid, 0) } as i32;
     if fd < 0 {
@@ -209,9 +222,8 @@ pub fn send_signal(id: &Identity, sig: i32) -> Result<String, String> {
         ));
     }
     let fd = unsafe { OwnedFd::from_raw_fd(fd) };
-    let all = list();
     let p = read_one(id.pid).map_err(|_| "Process has exited".to_string())?;
-    validate_target(&p, id, unsafe { libc::getuid() }, &protected_ids(&all))?;
+    validate_target(&p, id, unsafe { libc::getuid() }, protected)?;
     let result = unsafe {
         libc::syscall(
             libc::SYS_pidfd_send_signal,
@@ -317,6 +329,31 @@ mod tests {
     fn self_is_protected() {
         let p = read_one(std::process::id() as i32).unwrap();
         assert!(signal(&p.id, false).is_err());
+    }
+    #[test]
+    fn batch_reports_mixed_results_without_signalling_stale_or_protected_targets() {
+        let mut first = std::process::Command::new("sleep")
+            .arg("30")
+            .spawn()
+            .unwrap();
+        let mut second = std::process::Command::new("sleep")
+            .arg("30")
+            .spawn()
+            .unwrap();
+        let a = read_one(first.id() as i32).unwrap().id;
+        let b = read_one(second.id() as i32).unwrap().id;
+        let stale = Identity {
+            pid: b.pid,
+            start: b.start + 1,
+        };
+        let own = read_one(std::process::id() as i32).unwrap().id;
+        let results = signal_batch(&[a, stale, own], false);
+        assert!(results[0].is_ok());
+        assert!(results[1].is_err() && results[2].is_err());
+        first.wait().unwrap();
+        assert!(second.try_wait().unwrap().is_none());
+        second.kill().unwrap();
+        second.wait().unwrap();
     }
     #[test]
     fn disposable_child_termination() {

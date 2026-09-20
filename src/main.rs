@@ -1,12 +1,19 @@
+mod command;
 mod desktop;
+mod desktop_entry;
 mod gpu;
 mod history;
 mod manage;
 mod metrics;
 mod process;
+mod storage;
 use serde_json::{json, Value};
-use std::io::{self, BufRead, Write};
+use std::io::{self, BufRead, Read, Write};
 fn main() {
+    if let Err(e) = command::install_cancellation() {
+        eprintln!("Cannot install worker shutdown handler: {e}");
+        std::process::exit(1);
+    }
     let mut sampler = metrics::Sampler::new();
     let desktop = desktop::Desktop::new();
     let mut history = history::History::new();
@@ -20,20 +27,25 @@ fn main() {
     }
     let stdin = io::stdin();
     let mut stdout = io::BufWriter::new(io::stdout());
-    for line in stdin.lock().lines() {
-        let Ok(line) = line else { break };
-        if line.len() > 1024 * 1024 {
+    let mut input = stdin.lock();
+    while !command::cancelled() {
+        let Ok(Some(line)) = request_line(&mut input) else {
             break;
-        }
+        };
         let response = match serde_json::from_str::<Value>(&line) {
             Ok(req) => match req["op"].as_str().unwrap_or("") {
-                "sample" => snapshot(
-                    &mut sampler,
-                    &desktop,
-                    &mut history,
-                    &mut cache,
-                    req["page"].as_str().unwrap_or("apps"),
-                ),
+                "sample" => {
+                    if req["reset"].as_bool().unwrap_or(false) {
+                        sampler.invalidate();
+                    }
+                    snapshot(
+                        &mut sampler,
+                        &desktop,
+                        &mut history,
+                        &mut cache,
+                        req["page"].as_str().unwrap_or("apps"),
+                    )
+                }
                 "manage" => {
                     cache.0.clear();
                     action(&req, &mut history, &desktop)
@@ -53,7 +65,8 @@ fn main() {
                             let force = req["force"].as_bool().unwrap_or(false);
                             let results: Vec<_> = ids
                                 .iter()
-                                .map(|id| match process::signal(id, force) {
+                                .zip(process::signal_batch(&ids, force))
+                                .map(|(id, result)| match result {
                                     Ok(message) => {
                                         json!({"pid":id.pid,"ok":true,"message":message})
                                     }
@@ -189,5 +202,29 @@ fn action(req: &Value, history: &mut history::History, desktop: &desktop::Deskto
     match result {
         Ok(message) => json!({"kind":"action","results":[{"ok":true,"message":message}]}),
         Err(message) => json!({"kind":"error","message":message}),
+    }
+}
+
+const REQUEST_LIMIT: u64 = 1024 * 1024;
+fn request_line(input: &mut impl BufRead) -> io::Result<Option<String>> {
+    let mut line = String::new();
+    let read = input.take(REQUEST_LIMIT + 1).read_line(&mut line)?;
+    if read as u64 > REQUEST_LIMIT {
+        return Err(io::Error::other("Request exceeds limit"));
+    }
+    Ok((read > 0).then_some(line))
+}
+#[cfg(test)]
+mod protocol_tests {
+    use super::*;
+    #[test]
+    fn line_limit_applies_before_allocating_entire_request() {
+        let mut input = io::Cursor::new(vec![b'x'; REQUEST_LIMIT as usize * 3]);
+        assert!(request_line(&mut input).is_err());
+        assert_eq!(input.position(), REQUEST_LIMIT + 1);
+        let mut valid = io::Cursor::new(b"{}\n{}\n");
+        assert_eq!(request_line(&mut valid).unwrap().as_deref(), Some("{}\n"));
+        assert_eq!(request_line(&mut valid).unwrap().as_deref(), Some("{}\n"));
+        assert_eq!(request_line(&mut valid).unwrap(), None);
     }
 }

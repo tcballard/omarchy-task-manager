@@ -40,6 +40,24 @@ private slots:
                                       Q_ARG(QVariant, QVariant(true))));
     QTRY_VERIFY(dialog->property("visible").toBool());
     QVERIFY(backend.paused());
+    // Application shortcuts must not replace the target, stack dialogs, or
+    // change wasPaused while a confirmation is visible.
+    QTest::keyClick(window, Qt::Key_3, Qt::ControlModifier);
+    QTest::keyClick(window, Qt::Key_N, Qt::ControlModifier);
+    QTest::keyClick(window, Qt::Key_Delete);
+    QCOMPARE(backend.page(), QString("processes"));
+    QVERIFY(dialog->property("visible").toBool());
+    QVERIFY(QMetaObject::invokeMethod(window, "ask",
+                                      Q_ARG(QVariant, QVariant(false))));
+    window->setProperty(
+        "actionInfo",
+        QVariantMap{{"title", "<b>literal title</b>"},
+                    {"body", "<img src='file:///no-such-image'>literal body"}});
+    auto body = window->findChild<QObject *>("confirmationBody");
+    QVERIFY(body);
+    QCOMPARE(body->property("textFormat").toInt(), 0); // QQuickText::PlainText
+    QCOMPARE(body->property("text").toString(),
+             QString("<img src='file:///no-such-image'>literal body"));
     QMetaObject::invokeMethod(dialog, "reject");
     QTRY_VERIFY(!dialog->property("visible").toBool());
     QCOMPARE(child.state(), QProcess::Running);

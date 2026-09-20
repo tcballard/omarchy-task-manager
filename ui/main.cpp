@@ -67,10 +67,7 @@ int main(int argc, char **argv) {
   int pageArg = app.arguments().indexOf("--page");
   if (pageArg >= 0 && pageArg + 1 < app.arguments().size()) {
     QString page = app.arguments()[pageArg + 1];
-    if (QStringList{"apps", "processes", "performance", "history", "startup",
-                    "users", "services", "system-services"}
-            .contains(page))
-      bridge.setPage(page);
+    bridge.setPage(page);
   }
   QQmlApplicationEngine engine;
   engine.rootContext()->setContextProperty("backend", &bridge);

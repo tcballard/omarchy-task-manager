@@ -156,6 +156,10 @@ impl Sampler {
             disk_extra: HashMap::new(),
         }
     }
+    pub fn invalidate(&mut self) {
+        self.time = None;
+        self.uptime = None;
+    }
     pub fn sample(&mut self) -> (Value, Vec<Process>) {
         let now = Instant::now();
         let seconds = self.time.map(|t| now.duration_since(t).as_secs_f64());

@@ -1,5 +1,6 @@
 #include "bridge.h"
 #include <QCoreApplication>
+#include <QSignalSpy>
 #include <QTemporaryDir>
 #include <QTest>
 class BridgeTest : public QObject {
@@ -49,6 +50,47 @@ private slots:
     const auto before = bridge.history().size();
     QTest::qWait(1100);
     QCOMPARE(bridge.history().size(), before);
+    QSignalSpy samples(&bridge, &Bridge::snapshotChanged);
+    bridge.setPaused(false);
+    QTRY_VERIFY_WITH_TIMEOUT(samples.count() > 0, 8000);
+    QVERIFY(!bridge.snapshot()
+                 .value("system")
+                 .toMap()
+                 .value("continuous")
+                 .toBool());
+    QCOMPARE(bridge.history().size(), 1);
+    bridge.active(false);
+    QTest::qWait(600);
+    samples.clear();
+    bridge.active(true);
+    QTRY_VERIFY_WITH_TIMEOUT(samples.count() > 0, 8000);
+    QVERIFY(!bridge.snapshot()
+                 .value("system")
+                 .toMap()
+                 .value("continuous")
+                 .toBool());
+    QTRY_VERIFY_WITH_TIMEOUT(!bridge.busy(), 8000);
+    samples.clear();
+    bridge.refresh();
+    QVERIFY(bridge.busy());
+    bridge.setPaused(true);
+    bridge.setPaused(false);
+    QTRY_VERIFY_WITH_TIMEOUT(samples.count() > 0, 8000);
+    QVERIFY(!bridge.snapshot()
+                 .value("system")
+                 .toMap()
+                 .value("continuous")
+                 .toBool());
+    QTRY_VERIFY_WITH_TIMEOUT(!bridge.busy(), 8000);
+    QVERIFY(bridge.prepareManagement({{"category", "startup"}}).isEmpty());
+    QVERIFY(
+        bridge.prepareManagement({{"category", "service"}, {"verb", "stop"}})
+            .isEmpty());
+    QVERIFY(
+        bridge.prepareManagement({{"category", "history"}, {"verb", "reset"}})
+            .isEmpty());
+    bridge.setPage("not-a-page");
+    QCOMPARE(bridge.page(), QString("processes"));
   }
 };
 int main(int argc, char **argv) {

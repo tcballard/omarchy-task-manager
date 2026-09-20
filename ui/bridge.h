@@ -101,7 +101,8 @@ signals:
   void busyChanged();
 
 private:
-  void send(const QVariantMap &);
+  bool send(const QVariantMap &);
+  static bool validPage(const QString &);
   void receive();
   void rebuild();
   void message(const QString &);
@@ -118,6 +119,6 @@ private:
   QString m_page = "apps", m_query, m_sort = "cpu",
           m_status = "Starting monitor…", m_selected;
   bool m_descending = true, m_tree = false, m_paused = false, m_visible = true,
-       m_busy = false;
+       m_busy = false, m_resetSample = true;
   int m_interval = 1000;
 };

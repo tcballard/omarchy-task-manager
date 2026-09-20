@@ -25,11 +25,15 @@ void Rows::replace(const QVariantList &next) {
   if (!rows.isEmpty())
     emit dataChanged(index(0), index(rows.size() - 1));
 }
+bool Bridge::validPage(const QString &page) {
+  static const QStringList pages{"apps",     "processes",      "performance",
+                                 "history",  "startup",        "users",
+                                 "services", "system-services"};
+  return pages.contains(page);
+}
 Bridge::Bridge(QObject *p) : QObject(p), m_rows(this) {
   m_page = m_settings.value("page", "apps").toString();
-  if (!QStringList{"apps", "processes", "performance", "history", "startup",
-                   "users", "services", "system-services"}
-           .contains(m_page))
+  if (!validPage(m_page))
     m_page = "apps";
   m_interval = m_settings.value("interval", 1000).toInt();
   if (!QList<int>{500, 1000, 2000, 5000}.contains(m_interval))
@@ -92,20 +96,24 @@ void Bridge::finish() {
   m_timeout.stop();
   emit busyChanged();
 }
-void Bridge::send(const QVariantMap &v) {
+bool Bridge::send(const QVariantMap &v) {
   if (m_busy || m_worker.state() != QProcess::Running)
-    return;
+    return false;
   m_busy = true;
   emit busyChanged();
   m_timeout.start(v.value("verb") == "dump" ? 65000 : 15000);
   m_worker.write(QJsonDocument::fromVariant(v).toJson(QJsonDocument::Compact) +
                  "\n");
+  return true;
 }
 void Bridge::refresh() {
-  if (!m_paused && m_visible)
-    send({{"op", "sample"}, {"page", m_page}});
+  if (!m_paused && m_visible &&
+      send({{"op", "sample"}, {"page", m_page}, {"reset", m_resetSample}}))
+    m_resetSample = false;
 }
 void Bridge::active(bool v) {
+  if (!v)
+    m_resetSample = true;
   m_visible = v;
   if (v)
     refresh();
@@ -131,8 +139,10 @@ void Bridge::receive() {
     auto v = doc.toVariant().toMap();
     auto kind = v.value("kind").toString();
     if (kind == "snapshot") {
-      if (m_paused)
+      if (m_paused || !m_visible || m_resetSample) {
+        refresh(); // Discard a pre-pause response and request a fresh baseline.
         continue;
+      }
       m_snapshot = v;
       auto sys = v.value("system").toMap();
       if (!sys.value("continuous").toBool())
@@ -201,9 +211,7 @@ void Bridge::receive() {
 void Bridge::setPage(const QString &s) {
   if (m_page == s)
     return;
-  if (!QStringList{"apps", "processes", "performance", "history", "startup",
-                   "users", "services", "system-services"}
-           .contains(s))
+  if (!validPage(s))
     return;
   m_rows.replace({});
   m_page = s;
@@ -246,6 +254,8 @@ void Bridge::setTree(bool v) {
 }
 void Bridge::setPaused(bool v) {
   m_paused = v;
+  if (v)
+    m_resetSample = true;
   emit preferencesChanged();
   if (!v)
     refresh();
@@ -537,6 +547,11 @@ QVariantMap Bridge::prepareManagement(const QVariantMap &request) {
     r["id"] = selected.value("id");
   }
   if (category == "service" || category == "startup") {
+    if ((category == "service" && m_page != "services" &&
+         m_page != "system-services") ||
+        (category == "startup" &&
+         (m_page != "startup" || !selected.value("editable").toBool())))
+      return {};
     if (selected.isEmpty())
       return {};
     r["key"] = selected.value("key");
@@ -544,7 +559,8 @@ QVariantMap Bridge::prepareManagement(const QVariantMap &request) {
       r["scope"] = selected.value("scope");
   }
   if (category == "session") {
-    if (selected.isEmpty() || selected.value("uid") != m_snapshot.value("uid"))
+    if (m_page != "users" || selected.isEmpty() ||
+        selected.value("uid") != m_snapshot.value("uid"))
       return {};
     r["uid"] = selected.value("uid");
     bool found = false;
@@ -555,6 +571,12 @@ QVariantMap Bridge::prepareManagement(const QVariantMap &request) {
     if (!found)
       return {};
   }
+  if (!QStringList{"restart", "process", "service", "startup", "session",
+                   "history"}
+           .contains(category) ||
+      (category == "history" &&
+       (m_page != "history" || r.value("verb") != "reset")))
+    return {};
   m_pending = r;
   QString verb = r.value("verb").toString();
   QString name = selected.value("name").toString();
@@ -693,8 +715,10 @@ void Bridge::loadLogs() {
 
 QVariantMap Bridge::prepareTree(bool force) {
   auto info = prepareAction(force);
-  if (info.isEmpty() || m_page != "processes")
+  if (info.isEmpty() || m_page != "processes") {
+    cancelAction();
     return {};
+  }
   auto s = selection();
   QSet<int> ids{s.value("pid").toInt()};
   auto all = m_snapshot.value("processes").toList();

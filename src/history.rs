@@ -1,11 +1,12 @@
 use crate::{
-    manage,
     process::{Identity, Process},
+    storage,
 };
 use serde_json::{json, Value};
 use std::{
     collections::{BTreeMap, HashMap},
     fs,
+    io::Read,
     path::PathBuf,
     time::{Instant, SystemTime, UNIX_EPOCH},
 };
@@ -15,6 +16,8 @@ pub struct History {
     last: Instant,
     path: PathBuf,
     since: u64,
+    save_error: Option<String>,
+    preserve_unreadable: bool,
 }
 fn now() -> u64 {
     SystemTime::now()
@@ -31,11 +34,36 @@ impl History {
                 PathBuf::from(std::env::var_os("HOME").unwrap_or_default()).join(".local/state")
             })
             .join("omarchy-task-manager/history.json");
-        let v = fs::read(&path)
-            .ok()
-            .filter(|v| v.len() < 8 * 1024 * 1024)
-            .and_then(|v| serde_json::from_slice::<Value>(&v).ok())
-            .unwrap_or_default();
+        Self::at_path(path)
+    }
+    fn at_path(path: PathBuf) -> Self {
+        let loaded = (|| -> Result<Value, String> {
+            let file = match fs::File::open(&path) {
+                Ok(file) => file,
+                Err(e) if e.kind() == std::io::ErrorKind::NotFound => {
+                    return Ok(json!({"rows":[]}))
+                }
+                Err(e) => return Err(e.to_string()),
+            };
+            let mut bytes = Vec::new();
+            file.take(8 * 1024 * 1024 + 1)
+                .read_to_end(&mut bytes)
+                .map_err(|e| e.to_string())?;
+            if bytes.len() > 8 * 1024 * 1024 {
+                return Err("History file exceeds 8 MiB".into());
+            }
+            let value: Value = serde_json::from_slice(&bytes).map_err(|e| e.to_string())?;
+            if !value["rows"]
+                .as_array()
+                .is_some_and(|rows| rows.iter().all(|row| row["key"].is_string()))
+            {
+                return Err("Invalid history rows".into());
+            }
+            Ok(value)
+        })();
+        let save_error = loaded.as_ref().err().map(|e| format!("Saved history could not be loaded: {e}. Original file preserved; reset history to replace it."));
+        let preserve_unreadable = save_error.is_some();
+        let v = loaded.unwrap_or_default();
         let rows = v["rows"]
             .as_array()
             .map(|r| {
@@ -51,6 +79,8 @@ impl History {
             last: Instant::now(),
             path,
             since: v["since"].as_u64().unwrap_or_else(now),
+            save_error,
+            preserve_unreadable,
         }
     }
     pub fn sample(&mut self, processes: &[Process], continuous: bool) {
@@ -91,31 +121,103 @@ impl History {
             .map(|p| (p.id.clone(), (p.ticks, p.read, p.write)))
             .collect();
         if self.last.elapsed().as_secs() >= 30 {
-            let _ = self.save();
+            self.persist();
             self.last = Instant::now();
         }
     }
     pub fn view(&self) -> Value {
-        json!({"rows":self.rows.values().collect::<Vec<_>>(),"since":self.since,"note":"Your processes grouped by executable. CPU time and disk I/O accumulate only while this monitor is sampling. Network history per app is not available from procfs."})
+        json!({"rows":self.rows.values().collect::<Vec<_>>(),"since":self.since,"error":self.save_error,"note":"Your processes grouped by executable. CPU time and disk I/O accumulate only while this monitor is sampling. Network history per app is not available from procfs."})
     }
     pub fn reset(&mut self) -> Result<String, String> {
+        let since = now();
+        // Commit the reset before changing memory; a failed save must not erase the visible history.
+        let bytes =
+            serde_json::to_vec(&json!({"rows":[],"since":since})).map_err(|e| e.to_string())?;
+        storage::atomic_write(&self.path, &bytes)?;
         self.rows.clear();
         self.previous.clear();
-        self.since = now();
-        self.save()?;
+        self.since = since;
+        self.save_error = None;
+        self.preserve_unreadable = false;
+        self.last = Instant::now();
         Ok("Usage history reset".into())
     }
+    fn persist(&mut self) {
+        if self.preserve_unreadable {
+            return;
+        }
+        self.save_error = self
+            .save()
+            .err()
+            .map(|e| format!("Usage history could not be saved: {e}"));
+    }
+
     fn save(&self) -> Result<(), String> {
-        manage::atomic_write(
+        storage::atomic_write(
             &self.path,
-            serde_json::to_string(&self.view())
-                .map_err(|e| e.to_string())?
-                .as_bytes(),
+            serde_json::to_string(
+                &json!({"rows":self.rows.values().collect::<Vec<_>>(), "since":self.since}),
+            )
+            .map_err(|e| e.to_string())?
+            .as_bytes(),
         )
     }
 }
 impl Drop for History {
     fn drop(&mut self) {
-        let _ = self.save();
+        self.persist();
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    #[test]
+    fn unreadable_history_is_preserved_until_explicit_reset() {
+        let dir = std::env::temp_dir().join(format!(
+            "task-manager-history-corrupt-{}",
+            std::process::id()
+        ));
+        fs::create_dir_all(&dir).unwrap();
+        let path = dir.join("history.json");
+        fs::write(&path, b"broken JSON").unwrap();
+        {
+            let mut h = History::at_path(path.clone());
+            assert!(h.view()["error"].is_string());
+            h.persist();
+        }
+        assert_eq!(fs::read(&path).unwrap(), b"broken JSON");
+        {
+            let mut h = History::at_path(path.clone());
+            h.reset().unwrap();
+            assert!(h.view()["error"].is_null());
+        }
+        let h = History::at_path(path.clone());
+        assert_eq!(h.view()["rows"], json!([]));
+        drop(h);
+        fs::remove_dir_all(dir).unwrap();
+    }
+    #[test]
+    fn failed_reset_preserves_rows_and_reports_save_failure() {
+        let dir = std::env::temp_dir().join(format!(
+            "task-manager-history-failed-{}",
+            std::process::id()
+        ));
+        fs::create_dir_all(&dir).unwrap();
+        let path = dir.join("history.json");
+        fs::write(
+            &path,
+            br#"{"rows":[{"key":"app","cpu_seconds":12}],"since":1}"#,
+        )
+        .unwrap();
+        let mut h = History::at_path(path.clone());
+        fs::remove_file(&path).unwrap();
+        fs::create_dir(&path).unwrap();
+        assert!(h.reset().is_err());
+        assert_eq!(h.view()["rows"][0]["cpu_seconds"], 12);
+        h.persist();
+        assert!(h.view()["error"].is_string());
+        drop(h);
+        fs::remove_dir_all(dir).unwrap();
     }
 }

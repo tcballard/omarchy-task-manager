@@ -94,25 +94,15 @@ impl Desktop {
                     continue;
                 }
                 if let Ok(s) = fs::read_to_string(e.path()) {
-                    let mut active = false;
-                    let mut fields = HashMap::new();
-                    for l in s.lines() {
-                        if l.starts_with('[') {
-                            active = l == "[Desktop Entry]";
-                        } else if active {
-                            if let Some((k, v)) = l.split_once('=') {
-                                fields.insert(k.trim(), v.trim());
-                            }
-                        }
-                    }
-                    if fields.get("Hidden") == Some(&"true") {
+                    let fields = crate::desktop_entry::parse(&s);
+                    if fields.get("Hidden").is_some_and(|v| v == "true") {
                         continue;
                     }
                     entries.push(DesktopEntry {
                         path: e.path(),
-                        name: fields.get("Name").unwrap_or(&id.as_str()).to_string(),
-                        icon: fields.get("Icon").unwrap_or(&"").to_string(),
-                        class: fields.get("StartupWMClass").unwrap_or(&"").to_string(),
+                        name: fields.get("Name").cloned().unwrap_or_else(|| id.clone()),
+                        icon: fields.get("Icon").cloned().unwrap_or_default(),
+                        class: fields.get("StartupWMClass").cloned().unwrap_or_default(),
                         id,
                     });
                 }
@@ -136,8 +126,13 @@ impl Desktop {
             let p = crate::process::read_one(id.pid).map_err(|_| "Process exited")?;
             crate::process::validate_target(&p, id, unsafe { libc::getuid() }, &protected)?;
         }
-        for id in ids {
-            crate::process::signal(id, false)?;
+        for (id, result) in ids.iter().zip(crate::process::signal_batch(ids, false)) {
+            // A parent may have already reaped a child while the fixed group was closing.
+            if let Err(error) = result {
+                if crate::process::read_one(id.pid).is_ok_and(|p| p.id == *id && p.state != "Z") {
+                    return Err(format!("Application partially closed: {error}"));
+                }
+            }
         }
         let start = std::time::Instant::now();
         while ids

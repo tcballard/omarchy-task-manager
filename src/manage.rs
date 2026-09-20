@@ -8,31 +8,9 @@ use std::{
     collections::BTreeMap,
     fs,
     path::{Path, PathBuf},
-    process::{Command, Stdio},
 };
 
-pub fn run(program: &str, args: &[&str]) -> Result<String, String> {
-    let output = Command::new("/usr/bin/timeout")
-        .args(["--signal=KILL", "4s", program])
-        .args(args)
-        .env("LC_ALL", "C")
-        .env("SYSTEMD_COLORS", "0")
-        .stdin(Stdio::null())
-        .output()
-        .map_err(|e| format!("{program}: {e}"))?;
-    if !output.status.success() {
-        let error = String::from_utf8_lossy(&output.stderr).trim().to_string();
-        return Err(if error.is_empty() {
-            format!("{program} failed or timed out")
-        } else {
-            error
-        });
-    }
-    if output.stdout.len() > 8 * 1024 * 1024 {
-        return Err("Response too large".into());
-    }
-    Ok(String::from_utf8_lossy(&output.stdout).into_owned())
-}
+use crate::command::run;
 pub fn services(user: bool) -> Value {
     let mut args = vec![
         "--no-pager",
@@ -135,21 +113,6 @@ pub fn service_action(req: &Value) -> Result<String, String> {
     run("/usr/bin/systemctl", &args)?;
     Ok(format!("{verb}: {unit}"))
 }
-fn parse_entry(s: &str) -> BTreeMap<String, String> {
-    let mut active = false;
-    let mut map = BTreeMap::new();
-    for line in s.lines() {
-        let line = line.trim();
-        if line.starts_with('[') {
-            active = line == "[Desktop Entry]";
-        } else if active && !line.starts_with('#') {
-            if let Some((k, v)) = line.split_once('=') {
-                map.insert(k.trim().into(), v.trim().into());
-            }
-        }
-    }
-    map
-}
 fn config_dirs() -> Vec<PathBuf> {
     let mut d = vec![desktop::config()];
     d.extend(
@@ -180,7 +143,7 @@ fn entries() -> BTreeMap<String, PathBuf> {
 pub fn startup() -> Value {
     let desktops = std::env::var("XDG_CURRENT_DESKTOP").unwrap_or_else(|_| "Hyprland".into());
     let mut rows:Vec<Value>=entries().into_iter().filter_map(|(id,path)|{
-        let text=fs::read_to_string(&path).ok()?;let e=parse_entry(&text);
+        let text=fs::read_to_string(&path).ok()?;let e=crate::desktop_entry::parse(&text);
         let applies=|key:&str|e.get(key).is_some_and(|s|s.split(';').any(|v|!v.is_empty() && desktops.split(':').any(|d|d.eq_ignore_ascii_case(v))));
         let eligible=(!e.contains_key("OnlyShowIn") || applies("OnlyShowIn")) && !applies("NotShowIn");
         Some(json!({"key":id,"name":e.get("Name").unwrap_or(&id),"command":e.get("Exec"),"state":if e.get("Hidden").is_some_and(|v|v=="true"){"Disabled"}else if !eligible{"Other desktop"}else{"Enabled"},"description":e.get("Comment"),"path":path,"kind":"xdg","editable":true,"impact":"Not measured"}))
@@ -211,7 +174,7 @@ pub fn startup_action(key: &str, enabled: bool) -> Result<String, String> {
     let output = set_hidden(&text, !enabled)?;
     let dest = desktop::config().join("autostart");
     fs::create_dir_all(&dest).map_err(|e| e.to_string())?;
-    atomic_write(&dest.join(key), output.as_bytes())?;
+    crate::storage::atomic_write(&dest.join(key), output.as_bytes())?;
     Ok(format!(
         "{} at next login: {key}",
         if enabled { "Enabled" } else { "Disabled" }
@@ -247,29 +210,6 @@ fn set_hidden(text: &str, hidden: bool) -> Result<String, String> {
         return Err("Invalid desktop entry".into());
     }
     Ok(lines.join("\n") + "\n")
-}
-pub fn atomic_write(path: &Path, bytes: &[u8]) -> Result<(), String> {
-    use std::io::Write;
-    use std::os::unix::fs::OpenOptionsExt;
-    let parent = path.parent().ok_or("Invalid destination")?;
-    fs::create_dir_all(parent).map_err(|e| e.to_string())?;
-    let temp = parent.join(format!(".task-manager-{}.tmp", std::process::id()));
-    let result = (|| {
-        let mut f = fs::OpenOptions::new()
-            .write(true)
-            .create_new(true)
-            .mode(0o600)
-            .open(&temp)
-            .map_err(|e| e.to_string())?;
-        f.write_all(bytes)
-            .and_then(|_| f.sync_all())
-            .map_err(|e| e.to_string())?;
-        fs::rename(&temp, path).map_err(|e| e.to_string())
-    })();
-    if result.is_err() {
-        let _ = fs::remove_file(&temp);
-    }
-    result
 }
 pub fn users(processes: &[Process]) -> Value {
     let mut users: BTreeMap<u32, Value> = BTreeMap::new();
@@ -395,19 +335,16 @@ pub fn dump(id: &Identity) -> Result<String, String> {
     let prefix = dir.join("core");
     let pid = id.pid.to_string();
     // gcore is an optional system debugger. Its kernel ptrace checks enforce ownership.
-    let result = Command::new("/usr/bin/timeout")
-        .args(["--signal=KILL", "60s", "/usr/bin/gcore", "-o"])
-        .arg(&prefix)
-        .arg(pid)
-        .stdin(Stdio::null())
-        .output()
-        .map_err(|e| e.to_string())?;
+    let result = crate::command::run_for(
+        "/usr/bin/gcore",
+        &["-o", &prefix.to_string_lossy(), &pid],
+        std::time::Duration::from_secs(60),
+    );
     let file = dir.join(format!("core.{}", id.pid));
-    if !result.status.success() {
+    if let Err(error) = result {
         let _ = fs::remove_file(&file);
         return Err(format!(
-            "Core dump failed (ptrace permission or timeout): {}",
-            String::from_utf8_lossy(&result.stderr).trim()
+            "Core dump failed (ptrace permission, cancellation or timeout): {error}"
         ));
     }
     if !process::read_one(id.pid).is_ok_and(|p| p.id == *id) {

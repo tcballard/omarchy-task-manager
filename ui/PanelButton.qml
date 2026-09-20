@@ -14,6 +14,7 @@ Button {
     horizontalPadding: 10
     hoverEnabled: true
     contentItem: Text {
+        textFormat: Text.PlainText
         text: control.text
         font: control.font
         color: control.palette.buttonText

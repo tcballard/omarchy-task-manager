@@ -15,6 +15,7 @@ ApplicationWindow {
     flags: Qt.Window | Qt.FramelessWindowHint
     property bool pinned: true
     property bool seenActive: false
+    property bool modalOpen: confirm.visible || runTask.visible || inspector.visible || tuning.visible
     property bool processPage: backend.page === "apps" || backend.page === "processes"
     property var pageNames: ({
             "apps": "Applications",
@@ -31,18 +32,22 @@ ApplicationWindow {
     function fontSize(name, fallback) {
         return Math.max(1, Number(tokens["font." + name] || fallback * baseSize / 12));
     }
+    function showConfirmation(info) {
+        if (modalOpen || !info.title)
+            return;
+        actionInfo = info;
+        wasPaused = backend.paused;
+        backend.paused = true;
+        confirm.open();
+    }
     function manage(request) {
-        actionInfo = backend.prepareManagement(request);
-        if (actionInfo.title) {
-            wasPaused = backend.paused;
-            backend.paused = true;
-            confirm.open();
-        }
+        if (!modalOpen)
+            showConfirmation(backend.prepareManagement(request));
     }
     onActiveChanged: {
         if (active)
             seenActive = true;
-        else if (seenActive && !pinned && !confirm.visible && !runTask.visible && !inspector.visible && !tuning.visible)
+        else if (seenActive && !pinned && !root.modalOpen)
             root.close();
     }
     header: Rectangle {
@@ -57,14 +62,14 @@ ApplicationWindow {
             anchors.leftMargin: 18
             anchors.rightMargin: 10
             spacing: 10
-            Label {
+            PlainLabel {
                 text: "TASK MANAGER"
                 font.pixelSize: root.fontSize("body", 12)
                 font.bold: true
                 font.letterSpacing: 1
                 color: accent
             }
-            Label {
+            PlainLabel {
                 text: "/ OMARCHY"
                 font.pixelSize: root.fontSize("body-small", 11)
                 color: muted
@@ -111,20 +116,22 @@ ApplicationWindow {
     }
     Shortcut {
         sequence: "Escape"
-        enabled: !confirm.visible && !runTask.visible && !inspector.visible && !tuning.visible
+        enabled: !root.modalOpen
         onActivated: root.close()
     }
     Shortcut {
         sequence: "Ctrl+N"
+        enabled: !root.modalOpen
         onActivated: runTask.open()
     }
     Shortcut {
         sequence: "F5"
+        enabled: !root.modalOpen
         onActivated: backend.refresh()
     }
     Shortcut {
         sequence: "Delete"
-        enabled: root.processPage && !search.activeFocus && root.canAct
+        enabled: !root.modalOpen && root.processPage && !search.activeFocus && root.canAct
         onActivated: root.ask(false)
     }
     property var snap: backend.snapshot
@@ -230,30 +237,30 @@ ApplicationWindow {
         backend.active(visibility !== Window.Minimized && visibility !== Window.Hidden);
     }
     function ask(force) {
-        actionInfo = backend.prepareAction(force);
-        if (actionInfo.title) {
-            wasPaused = backend.paused;
-            backend.paused = true;
-            confirm.open();
-        }
+        if (!modalOpen)
+            showConfirmation(backend.prepareAction(force));
     }
     function rate(v) {
         return v === null || v === undefined ? "—" : backend.bytes(v) + "/s";
     }
     Shortcut {
         sequence: "Ctrl+F"
+        enabled: !root.modalOpen
         onActivated: search.forceActiveFocus()
     }
     Shortcut {
         sequence: "Ctrl+1"
+        enabled: !root.modalOpen
         onActivated: backend.page = "apps"
     }
     Shortcut {
         sequence: "Ctrl+2"
+        enabled: !root.modalOpen
         onActivated: backend.page = "processes"
     }
     Shortcut {
         sequence: "Ctrl+3"
+        enabled: !root.modalOpen
         onActivated: backend.page = "performance"
     }
     RowLayout {
@@ -267,7 +274,7 @@ ApplicationWindow {
                 anchors.fill: parent
                 anchors.margins: 16
                 spacing: 7
-                Label {
+                PlainLabel {
                     text: "WORKSPACE"
                     font.pixelSize: root.fontSize("body-small", 11)
                     font.bold: true
@@ -315,7 +322,7 @@ ApplicationWindow {
                         flat: true
                         checkable: true
                         checked: backend.page === modelData.page || (modelData.page === "services" && backend.page === "system-services")
-                        contentItem: Label {
+                        contentItem: PlainLabel {
                             text: parent.text
                             color: parent.checked ? accent : fg
                             verticalAlignment: Text.AlignVCenter
@@ -333,7 +340,7 @@ ApplicationWindow {
                 Item {
                     Layout.fillHeight: true
                 }
-                Label {
+                PlainLabel {
                     text: "Refresh interval"
                     font.pixelSize: root.fontSize("body", 12)
                     color: muted
@@ -351,7 +358,7 @@ ApplicationWindow {
                     text: backend.paused ? "Resume monitoring" : "Pause monitoring"
                     onClicked: backend.paused = !backend.paused
                 }
-                Label {
+                PlainLabel {
                     objectName: "versionLabel"
                     text: "v0.1.0 · Preview"
                     color: muted
@@ -375,13 +382,13 @@ ApplicationWindow {
                 Layout.minimumHeight: 62
                 ColumnLayout {
                     spacing: 4
-                    Label {
+                    PlainLabel {
                         text: root.pageNames[backend.page] || "Task Manager"
                         font.pixelSize: root.fontSize("heading", 16)
                         font.bold: true
                         color: fg
                     }
-                    Label {
+                    PlainLabel {
                         text: backend.page === "apps" ? "Running windows and their processes" : backend.page === "processes" ? "Processes, resource use, and controls" : backend.page === "performance" ? "Live resource use · 60-second history" : "Monitor and manage your system"
                         font.pixelSize: root.fontSize("body", 12)
                         color: muted
@@ -394,12 +401,12 @@ ApplicationWindow {
                     Layout.minimumWidth: 90
                     Layout.preferredWidth: 90
                     spacing: 3
-                    Label {
+                    PlainLabel {
                         text: "CPU"
                         font.pixelSize: root.fontSize("body-small", 11)
                         color: muted
                     }
-                    Label {
+                    PlainLabel {
                         text: backend.percent(system.cpu && system.cpu.length ? system.cpu[0].usage : null)
                         font.pixelSize: root.fontSize("display", 24)
                         color: accent
@@ -416,12 +423,12 @@ ApplicationWindow {
                     Layout.minimumWidth: 90
                     Layout.preferredWidth: 90
                     spacing: 3
-                    Label {
+                    PlainLabel {
                         text: "MEMORY"
                         font.pixelSize: root.fontSize("body-small", 11)
                         color: muted
                     }
-                    Label {
+                    PlainLabel {
                         text: mem.total ? backend.percent(100 * mem.used / mem.total) : "—"
                         font.pixelSize: root.fontSize("display", 24)
                         color: fg
@@ -561,14 +568,14 @@ ApplicationWindow {
                                         sourceSize.width: 32
                                         sourceSize.height: 32
                                     }
-                                    Label {
+                                    PlainLabel {
                                         Layout.fillWidth: true
                                         text: entry.name
                                         color: fg
                                         elide: Text.ElideRight
                                         font.bold: backend.selected === entry.key
                                     }
-                                    Label {
+                                    PlainLabel {
                                         visible: !!entry.protected
                                         text: "Protected"
                                         font.pixelSize: root.fontSize("caption", 10)
@@ -578,7 +585,7 @@ ApplicationWindow {
                                 }
                                 Repeater {
                                     model: root.columns.slice(1)
-                                    delegate: Label {
+                                    delegate: PlainLabel {
                                         required property var modelData
                                         width: modelData.width
                                         height: parent.height
@@ -596,7 +603,7 @@ ApplicationWindow {
                             Accessible.name: entry.name
                             Accessible.selected: backend.selected === entry.key
                         }
-                        Label {
+                        PlainLabel {
                             anchors.centerIn: parent
                             visible: list.count === 0
                             width: parent.width - 40
@@ -634,7 +641,7 @@ ApplicationWindow {
                 ColumnLayout {
                     width: perf.availableWidth
                     spacing: 20
-                    Label {
+                    PlainLabel {
                         text: (system.cpu_model || "CPU") + " · " + (system.process_count || 0) + " processes / " + (system.thread_count || 0) + " threads"
                         Layout.fillWidth: true
                         wrapMode: Text.Wrap
@@ -646,7 +653,7 @@ ApplicationWindow {
                         spacing: 24
                         ColumnLayout {
                             Layout.fillWidth: true
-                            Label {
+                            PlainLabel {
                                 text: "CPU HISTORY"
                                 font.pixelSize: root.fontSize("body-small", 11)
                                 font.bold: true
@@ -660,7 +667,7 @@ ApplicationWindow {
                                 ink: accent
                                 grid: line
                             }
-                            Label {
+                            PlainLabel {
                                 text: (system.cores || 0) + " logical CPUs · " + (system.cpu_mhz ? (system.cpu_mhz / 1000).toFixed(2) + " GHz" : "60 seconds")
                                 color: muted
                                 font.pixelSize: root.fontSize("body", 12)
@@ -668,7 +675,7 @@ ApplicationWindow {
                         }
                         ColumnLayout {
                             Layout.fillWidth: true
-                            Label {
+                            PlainLabel {
                                 text: "MEMORY HISTORY"
                                 font.pixelSize: root.fontSize("body-small", 11)
                                 font.bold: true
@@ -682,7 +689,7 @@ ApplicationWindow {
                                 ink: fg
                                 grid: line
                             }
-                            Label {
+                            PlainLabel {
                                 text: backend.bytes(mem.used || 0) + " / " + backend.bytes(mem.total || 0)
                                 color: muted
                                 font.pixelSize: root.fontSize("body", 12)
@@ -714,7 +721,7 @@ ApplicationWindow {
                                     grid: line
                                 }
                                 radius: 3
-                                Label {
+                                PlainLabel {
                                     anchors.horizontalCenter: parent.horizontalCenter
                                     y: 8
                                     text: modelData.name + "  " + backend.percent(modelData.usage)
@@ -724,7 +731,7 @@ ApplicationWindow {
                             }
                         }
                     }
-                    Label {
+                    PlainLabel {
                         text: "Available: " + backend.bytes(mem.available || 0) + "    Cache: " + backend.bytes(mem.cache || 0) + "    Swap: " + backend.bytes(mem.swap_used || 0) + " / " + backend.bytes(mem.swap_total || 0)
                         color: muted
                         font.pixelSize: root.fontSize("body", 12)
@@ -736,7 +743,7 @@ ApplicationWindow {
                         Layout.preferredHeight: 1
                         color: line
                     }
-                    Label {
+                    PlainLabel {
                         text: "NETWORK"
                         font.pixelSize: root.fontSize("body-small", 11)
                         font.bold: true
@@ -749,17 +756,17 @@ ApplicationWindow {
                             Layout.fillWidth: true
                             RowLayout {
                                 Layout.fillWidth: true
-                                Label {
+                                PlainLabel {
                                     text: modelData.name + (modelData.state ? " · " + modelData.state : "")
                                     Layout.fillWidth: true
                                     color: fg
                                 }
-                                Label {
+                                PlainLabel {
                                     text: "↓ " + root.rate(modelData.first_rate) + "     ↑ " + root.rate(modelData.second_rate)
                                     color: fg
                                     font.family: "monospace"
                                 }
-                                Label {
+                                PlainLabel {
                                     text: backend.bytes(modelData.first) + " received"
                                     color: muted
                                     Layout.preferredWidth: 150
@@ -784,7 +791,7 @@ ApplicationWindow {
                         Layout.preferredHeight: 1
                         color: line
                     }
-                    Label {
+                    PlainLabel {
                         text: "DISK ACTIVITY"
                         font.pixelSize: root.fontSize("body-small", 11)
                         font.bold: true
@@ -797,12 +804,12 @@ ApplicationWindow {
                             Layout.fillWidth: true
                             RowLayout {
                                 Layout.fillWidth: true
-                                Label {
+                                PlainLabel {
                                     text: modelData.name
                                     Layout.fillWidth: true
                                     color: fg
                                 }
-                                Label {
+                                PlainLabel {
                                     text: "Read " + root.rate(modelData.first_rate) + "     Write " + root.rate(modelData.second_rate) + " · " + backend.percent(modelData.active_percent) + " active"
                                     color: fg
                                     font.family: "monospace"
@@ -821,12 +828,12 @@ ApplicationWindow {
                             }
                         }
                     }
-                    Label {
+                    PlainLabel {
                         visible: !(system.disks || []).length
                         text: "No readable block-device counters"
                         color: muted
                     }
-                    Label {
+                    PlainLabel {
                         text: "VOLUMES"
                         font.pixelSize: root.fontSize("body-small", 11)
                         font.bold: true
@@ -840,13 +847,13 @@ ApplicationWindow {
                             spacing: 5
                             RowLayout {
                                 Layout.fillWidth: true
-                                Label {
+                                PlainLabel {
                                     text: modelData.name
                                     Layout.fillWidth: true
                                     color: fg
                                     elide: Text.ElideMiddle
                                 }
-                                Label {
+                                PlainLabel {
                                     text: backend.bytes(modelData.available) + " available / " + backend.bytes(modelData.total)
                                     color: muted
                                     font.pixelSize: root.fontSize("body", 12)
@@ -863,7 +870,7 @@ ApplicationWindow {
                         Layout.preferredHeight: 1
                         color: line
                     }
-                    Label {
+                    PlainLabel {
                         text: "GPU"
                         color: muted
                         font.pixelSize: root.fontSize("body-small", 11)
@@ -876,12 +883,12 @@ ApplicationWindow {
                             Layout.fillWidth: true
                             RowLayout {
                                 Layout.fillWidth: true
-                                Label {
+                                PlainLabel {
                                     text: modelData.name + " · " + modelData.driver
                                     Layout.fillWidth: true
                                     color: fg
                                 }
-                                Label {
+                                PlainLabel {
                                     text: backend.percent(modelData.usage)
                                     color: accent
                                 }
@@ -894,11 +901,11 @@ ApplicationWindow {
                                 ink: accent
                                 grid: line
                             }
-                            Label {
+                            PlainLabel {
                                 text: modelData.memory_total ? backend.bytes(modelData.memory_used || 0) + " / " + backend.bytes(modelData.memory_total) + " VRAM" : "VRAM counter unavailable"
                                 color: fg
                             }
-                            Label {
+                            PlainLabel {
                                 text: modelData.source
                                 Layout.fillWidth: true
                                 wrapMode: Text.Wrap
@@ -907,24 +914,24 @@ ApplicationWindow {
                             }
                         }
                     }
-                    Label {
+                    PlainLabel {
                         visible: !(system.gpus || []).length
                         text: "No readable GPU devices in this session"
                         color: muted
                     }
-                    Label {
+                    PlainLabel {
                         text: "HARDWARE"
                         font.pixelSize: root.fontSize("body-small", 11)
                         font.bold: true
                         color: muted
                     }
-                    Label {
+                    PlainLabel {
                         text: system.hardware ? system.hardware.gpu_status : "GPU metrics unavailable"
                         color: muted
                     }
                     Repeater {
                         model: system.hardware ? system.hardware.batteries : []
-                        delegate: Label {
+                        delegate: PlainLabel {
                             required property var modelData
                             text: modelData.name + "   " + modelData.percent + "%   " + modelData.status
                             color: fg
@@ -935,14 +942,14 @@ ApplicationWindow {
                         spacing: 16
                         Repeater {
                             model: system.hardware ? system.hardware.sensors : []
-                            delegate: Label {
+                            delegate: PlainLabel {
                                 required property var modelData
                                 text: modelData.name + "  " + modelData.celsius.toFixed(1) + " °C"
                                 color: fg
                             }
                         }
                     }
-                    Label {
+                    PlainLabel {
                         text: "Load averages: " + (system.load || "—") + "    Uptime: " + (system.uptime ? Math.floor(system.uptime / 3600) + "h " + Math.floor(system.uptime % 3600 / 60) + "m" : "—")
                         color: muted
                         font.pixelSize: root.fontSize("body", 12)
@@ -973,7 +980,7 @@ ApplicationWindow {
                 }
                 RowLayout {
                     Layout.fillWidth: true
-                    Label {
+                    PlainLabel {
                         Layout.fillWidth: true
                         text: picked.key ? (picked.protected ? "Desktop/session process protected" : "Selected: " + picked.name) : "Select a row to manage it"
                         color: muted
@@ -1014,7 +1021,7 @@ ApplicationWindow {
                     }
                 }
             }
-            Label {
+            PlainLabel {
                 Layout.fillWidth: true
                 objectName: "statusLabel"
                 text: backend.status
@@ -1055,18 +1062,22 @@ ApplicationWindow {
     }
     Shortcut {
         sequence: "Ctrl+4"
+        enabled: !root.modalOpen
         onActivated: backend.page = "history"
     }
     Shortcut {
         sequence: "Ctrl+5"
+        enabled: !root.modalOpen
         onActivated: backend.page = "startup"
     }
     Shortcut {
         sequence: "Ctrl+6"
+        enabled: !root.modalOpen
         onActivated: backend.page = "users"
     }
     Shortcut {
         sequence: "Ctrl+7"
+        enabled: !root.modalOpen
         onActivated: backend.page = "services"
     }
     Menu {
@@ -1151,12 +1162,8 @@ ApplicationWindow {
             visible: backend.page === "processes"
             enabled: root.canAct
             onTriggered: {
-                root.actionInfo = backend.prepareTree(false);
-                if (root.actionInfo.title) {
-                    root.wasPaused = backend.paused;
-                    backend.paused = true;
-                    confirm.open();
-                }
+                if (!root.modalOpen)
+                    root.showConfirmation(backend.prepareTree(false));
             }
         }
         MenuItem {
@@ -1177,7 +1184,7 @@ ApplicationWindow {
         ColumnLayout {
             width: parent.width
             spacing: 14
-            Label {
+            PlainLabel {
                 Layout.fillWidth: true
                 text: "Enter an executable and arguments. Use double quotes for paths containing spaces."
                 wrapMode: Text.Wrap
@@ -1194,7 +1201,7 @@ ApplicationWindow {
                     runTask.close();
                 }
             }
-            Label {
+            PlainLabel {
                 text: "Runs as your user. Shell operators are not evaluated."
                 color: muted
                 font.pixelSize: root.fontSize("body-small", 11)
@@ -1234,6 +1241,7 @@ ApplicationWindow {
     }
     Dialog {
         id: tuning
+        objectName: "tuningDialog"
         anchors.centerIn: parent
         width: Math.min(560, root.width - 80)
         modal: true
@@ -1242,14 +1250,14 @@ ApplicationWindow {
         ColumnLayout {
             width: parent.width
             spacing: 16
-            Label {
+            PlainLabel {
                 Layout.fillWidth: true
                 text: "Applies to existing threads. Lower nice values mean higher priority; raising priority may be denied by Linux."
                 wrapMode: Text.Wrap
                 color: muted
             }
             RowLayout {
-                Label {
+                PlainLabel {
                     text: "Nice value"
                     color: fg
                 }
@@ -1272,7 +1280,7 @@ ApplicationWindow {
                     }
                 }
             }
-            Label {
+            PlainLabel {
                 Layout.fillWidth: true
                 text: "CPU affinity · comma-separated CPU numbers. Invalid or unavailable CPUs are rejected by the kernel."
                 wrapMode: Text.Wrap
@@ -1307,8 +1315,16 @@ ApplicationWindow {
         width: Math.min(560, root.width - 80)
         modal: true
         title: root.actionInfo.title || "Confirm action"
+        header: PlainLabel {
+            text: confirm.title
+            padding: 12
+            font.bold: true
+            color: fg
+            wrapMode: Text.Wrap
+        }
         standardButtons: Dialog.Ok | Dialog.Cancel
-        contentItem: Label {
+        contentItem: PlainLabel {
+            objectName: "confirmationBody"
             text: root.actionInfo.body || ""
             wrapMode: Text.Wrap
             color: fg

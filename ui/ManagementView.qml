@@ -10,6 +10,10 @@ Item {
     property color line
     property color muted
     property var picked: backend.selection
+    property string pageError: backend.page === "history"
+        ? ((backend.snapshot.usage || {}).error || "")
+        : backend.snapshot.management_page === backend.page
+          ? ((backend.snapshot.management || {}).error || "") : ""
     property bool services: backend.page === "services" || backend.page === "system-services"
     property var columns: backend.page === "history" ? [{
             "key": "name",
@@ -100,7 +104,7 @@ Item {
         spacing: 12
         RowLayout {
             visible: view.services
-            Label {
+            PlainLabel {
                 text: "Scope"
                 color: muted
             }
@@ -112,12 +116,12 @@ Item {
             Item {
                 Layout.fillWidth: true
             }
-            Label {
+            PlainLabel {
                 text: "systemd"
                 color: muted
             }
         }
-        Label {
+        PlainLabel {
             Layout.fillWidth: true
             wrapMode: Text.Wrap
             color: muted
@@ -195,7 +199,7 @@ Item {
                             spacing: 0
                             Repeater {
                                 model: view.columns
-                                delegate: Label {
+                                delegate: PlainLabel {
                                     required property var modelData
                                     width: view.columnWidth(modelData, parent.width)
                                     height: 40
@@ -217,22 +221,22 @@ Item {
                         Accessible.name: entry.name
                         Accessible.selected: backend.selected === entry.key
                     }
-                    Label {
+                    PlainLabel {
                         anchors.centerIn: parent
                         width: parent.width - 48
                         horizontalAlignment: Text.AlignHCenter
                         wrapMode: Text.Wrap
                         color: muted
                         visible: rows.count === 0
-                        text: backend.query ? "No matching results" : backend.snapshot.management && backend.snapshot.management.error ? backend.snapshot.management.error : backend.page === "history" ? "Usage history will appear as processes are sampled." : "No entries found."
+                        text: backend.query ? "No matching results" : view.pageError ? view.pageError : backend.page === "history" ? "Usage history will appear as processes are sampled." : "No entries found."
                     }
                 }
             }
         }
-        Label {
+        PlainLabel {
             Layout.fillWidth: true
-            visible: !!(backend.snapshot.management && backend.snapshot.management.error) && rows.count > 0
-            text: backend.snapshot.management ? backend.snapshot.management.error || "" : ""
+            visible: !!view.pageError && rows.count > 0
+            text: view.pageError
             wrapMode: Text.Wrap
             color: muted
             font.pixelSize: 11
