@@ -134,6 +134,7 @@ fn hardware() -> Value {
     json!({"batteries":batteries,"sensors":sensors,"gpu_status":"GPU counters depend on driver support and permissions"})
 }
 pub struct Sampler {
+    mounts: crate::slow::Collector,
     gpu: crate::gpu::Gpu,
     time: Option<Instant>,
     uptime: Option<f64>,
@@ -146,6 +147,7 @@ pub struct Sampler {
 impl Sampler {
     pub fn new() -> Self {
         Self {
+            mounts: crate::slow::Collector::new(mounts),
             gpu: crate::gpu::Gpu::default(),
             time: None,
             uptime: None,
@@ -155,6 +157,10 @@ impl Sampler {
             disks: HashMap::new(),
             disk_extra: HashMap::new(),
         }
+    }
+    pub fn invalidate(&mut self) {
+        self.time = None;
+        self.uptime = None;
     }
     pub fn sample(&mut self) -> (Value, Vec<Process>) {
         let now = Instant::now();
@@ -278,7 +284,8 @@ impl Sampler {
         };
         let thread_count: u64 = processes.iter().map(|p| p.threads).sum();
         self.disk_extra = disk_extra;
-        let result = json!({"cpu_model":cpu_model,"cpu_mhz":avg_mhz,"process_count":processes.len(),"thread_count":thread_count,"gpus":gpus,"cpu":cpu,"memory":mem(),"network":networks_view,"disks":disk_rates,"mounts":mounts(),"hardware":hardware(),"load":read("/proc/loadavg").split_whitespace().take(3).collect::<Vec<_>>().join("  "),"uptime":uptime,"cores":cores,"continuous":valid.is_some()});
+        let capacity = self.mounts.poll();
+        let result = json!({"cpu_model":cpu_model,"cpu_mhz":avg_mhz,"process_count":processes.len(),"thread_count":thread_count,"gpus":gpus,"cpu":cpu,"memory":mem(),"network":networks_view,"disks":disk_rates,"mounts":capacity["rows"],"mounts_status":capacity["message"],"hardware":hardware(),"load":read("/proc/loadavg").split_whitespace().take(3).collect::<Vec<_>>().join("  "),"uptime":uptime,"cores":cores,"continuous":valid.is_some()});
         self.time = Some(now);
         self.uptime = uptime;
         self.cpus = cpus;

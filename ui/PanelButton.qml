@@ -1,12 +1,12 @@
 import QtQuick
 import QtQuick.Controls
+import "Theme.js" as Theme
 
 Button {
     id: control
     property var tokens: backend.snapshot.theme ? (backend.snapshot.theme.shell || ({})) : ({})
     function n(key, fallback) {
-        var x = Number(tokens[key]);
-        return tokens[key] !== undefined && isFinite(x) ? x : fallback;
+        return Theme.number(tokens, key, fallback, 0, key.indexOf("alpha") >= 0 ? 1 : 8);
     }
     implicitHeight: Math.max(28, font.pixelSize + 14)
     implicitWidth: Math.max(72, contentItem.implicitWidth + 20)
@@ -14,6 +14,7 @@ Button {
     horizontalPadding: 10
     hoverEnabled: true
     contentItem: Text {
+        textFormat: Text.PlainText
         text: control.text
         font: control.font
         color: control.palette.buttonText

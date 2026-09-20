@@ -3,18 +3,22 @@ import QtQuick.Controls
 import QtQuick.Layouts
 import QtQuick.Window
 import TaskManager 1.0
+import "Theme.js" as Theme
 
 ApplicationWindow {
     id: root
-    width: Math.max(850, backend.preference("width", 1120))
-    height: Math.max(560, backend.preference("height", 760))
-    minimumWidth: 850
-    minimumHeight: 560
+    property real availableScreenWidth: Math.max(1, Screen.desktopAvailableWidth - 40)
+    property real availableScreenHeight: Math.max(1, Screen.desktopAvailableHeight - 60)
+    width: Math.min(availableScreenWidth, Math.max(850, backend.preference("width", 1120)))
+    height: Math.min(availableScreenHeight, Math.max(560, backend.preference("height", 760)))
+    minimumWidth: Math.min(850, availableScreenWidth)
+    minimumHeight: Math.min(560, availableScreenHeight)
     visible: true
     title: "Task Manager"
     flags: Qt.Window | Qt.FramelessWindowHint
     property bool pinned: true
     property bool seenActive: false
+    property bool modalOpen: confirm.visible || runTask.visible || inspector.visible || tuning.visible
     property bool processPage: backend.page === "apps" || backend.page === "processes"
     property var pageNames: ({
             "apps": "Applications",
@@ -27,73 +31,87 @@ ApplicationWindow {
             "system-services": "Services"
         })
     property var tokens: snap.theme ? (snap.theme.shell || ({})) : ({})
-    property real baseSize: Number(tokens["font.base-size"] || 12)
+    property real baseSize: Theme.number(tokens, "font.base-size", 12, 8, 32)
+    property real layoutScale: Math.max(1, fontSize("body", 12) / 12)
     function fontSize(name, fallback) {
-        return Math.max(1, Number(tokens["font." + name] || fallback * baseSize / 12));
+        return Theme.number(tokens, "font." + name, fallback * baseSize / 12, 8, 48);
+    }
+    function showConfirmation(info) {
+        if (modalOpen || !info.title)
+            return;
+        actionInfo = info;
+        wasPaused = backend.paused;
+        backend.paused = true;
+        confirm.open();
     }
     function manage(request) {
-        actionInfo = backend.prepareManagement(request);
-        if (actionInfo.title) {
-            wasPaused = backend.paused;
-            backend.paused = true;
-            confirm.open();
-        }
+        if (!modalOpen)
+            showConfirmation(backend.prepareManagement(request));
     }
     onActiveChanged: {
         if (active)
             seenActive = true;
-        else if (seenActive && !pinned && !confirm.visible && !runTask.visible && !inspector.visible && !tuning.visible)
+        else if (seenActive && !pinned && !root.modalOpen)
             root.close();
     }
     header: Rectangle {
-        height: 44
+        height: 44 * root.layoutScale + 12
         color: bg
         MouseArea {
             anchors.fill: parent
             onPressed: root.startSystemMove()
         }
-        RowLayout {
+        TableViewport {
             anchors.fill: parent
-            anchors.leftMargin: 18
-            anchors.rightMargin: 10
-            spacing: 10
-            Label {
-                text: "TASK MANAGER"
-                font.pixelSize: root.fontSize("body", 12)
-                font.bold: true
-                font.letterSpacing: 1
-                color: accent
+            anchors.rightMargin: 40
+            minimumContentWidth: 810 * root.layoutScale
+            RowLayout {
+                x: 18
+                width: parent.width - 28
+                height: parent.height
+                spacing: 10
+                PlainLabel {
+                    text: "TASK MANAGER"
+                    font.pixelSize: root.fontSize("body", 12)
+                    font.bold: true
+                    font.letterSpacing: 1
+                    color: accent
+                }
+                PlainLabel {
+                    text: "/ OMARCHY"
+                    font.pixelSize: root.fontSize("body-small", 11)
+                    color: muted
+                }
+                Item {
+                    Layout.fillWidth: true
+                }
+                PanelButton {
+                    text: "Run new task"
+                    onClicked: runTask.open()
+                }
+                PanelButton {
+                    text: "Export"
+                    onClicked: backend.exportSnapshot()
+                }
+                PanelButton {
+                    text: root.pinned ? "Stay open" : "Dismiss on blur"
+                    checkable: true
+                    checked: root.pinned
+                    onClicked: root.pinned = !root.pinned
+                    ToolTip.visible: hovered
+                    ToolTip.text: "Keep the panel open when another window receives focus"
+                }
             }
-            Label {
-                text: "/ OMARCHY"
-                font.pixelSize: root.fontSize("body-small", 11)
-                color: muted
-            }
-            Item {
-                Layout.fillWidth: true
-            }
-            PanelButton {
-                text: "Run new task"
-                onClicked: runTask.open()
-            }
-            PanelButton {
-                text: "Export"
-                onClicked: backend.exportSnapshot()
-            }
-            PanelButton {
-                text: root.pinned ? "Stay open" : "Dismiss on blur"
-                checkable: true
-                checked: root.pinned
-                onClicked: root.pinned = !root.pinned
-                ToolTip.visible: hovered
-                ToolTip.text: "Keep the panel open when another window receives focus"
-            }
-            ToolButton {
-                text: "×"
-                font.pixelSize: 22
-                Accessible.name: "Close Task Manager"
-                onClicked: root.close()
-            }
+        }
+        ToolButton {
+            objectName: "closePanelButton"
+            anchors.right: parent.right
+            anchors.verticalCenter: parent.verticalCenter
+            width: 40
+            text: "×"
+            font.pixelSize: 22
+            Accessible.name: "Close Task Manager"
+            onClicked: root.close()
         }
         Rectangle {
             anchors.bottom: parent.bottom
@@ -111,20 +129,22 @@ ApplicationWindow {
     }
     Shortcut {
         sequence: "Escape"
-        enabled: !confirm.visible && !runTask.visible && !inspector.visible && !tuning.visible
+        enabled: !root.modalOpen
         onActivated: root.close()
     }
     Shortcut {
         sequence: "Ctrl+N"
+        enabled: !root.modalOpen
         onActivated: runTask.open()
     }
     Shortcut {
         sequence: "F5"
+        enabled: !root.modalOpen
         onActivated: backend.refresh()
     }
     Shortcut {
         sequence: "Delete"
-        enabled: root.processPage && !search.activeFocus && root.canAct
+        enabled: !root.modalOpen && root.processPage && !search.activeFocus && root.canAct
         onActivated: root.ask(false)
     }
     property var snap: backend.snapshot
@@ -190,10 +210,7 @@ ApplicationWindow {
         return c;
     }
     function nameColumnWidth(total) {
-        var reserved = 0;
-        for (var i = 1; i < columns.length; i++)
-            reserved += columns[i].width;
-        return Math.max(120, total - reserved);
+        return Theme.columnWidth(columns, columns[0], total, layoutScale);
     }
     function cell(row, key) {
         var v = row[key];
@@ -230,799 +247,828 @@ ApplicationWindow {
         backend.active(visibility !== Window.Minimized && visibility !== Window.Hidden);
     }
     function ask(force) {
-        actionInfo = backend.prepareAction(force);
-        if (actionInfo.title) {
-            wasPaused = backend.paused;
-            backend.paused = true;
-            confirm.open();
-        }
+        if (!modalOpen)
+            showConfirmation(backend.prepareAction(force));
     }
     function rate(v) {
         return v === null || v === undefined ? "—" : backend.bytes(v) + "/s";
     }
     Shortcut {
         sequence: "Ctrl+F"
+        enabled: !root.modalOpen
         onActivated: search.forceActiveFocus()
     }
     Shortcut {
         sequence: "Ctrl+1"
+        enabled: !root.modalOpen
         onActivated: backend.page = "apps"
     }
     Shortcut {
         sequence: "Ctrl+2"
+        enabled: !root.modalOpen
         onActivated: backend.page = "processes"
     }
     Shortcut {
         sequence: "Ctrl+3"
+        enabled: !root.modalOpen
         onActivated: backend.page = "performance"
     }
-    RowLayout {
+    ScrollView {
+        id: workspaceScroll
+        objectName: "workspaceScroll"
         anchors.fill: parent
-        spacing: 0
-        Rectangle {
-            Layout.fillHeight: true
-            Layout.preferredWidth: 176
-            color: panel
-            ColumnLayout {
-                anchors.fill: parent
-                anchors.margins: 16
-                spacing: 7
-                Label {
-                    text: "WORKSPACE"
-                    font.pixelSize: root.fontSize("body-small", 11)
-                    font.bold: true
-                    font.letterSpacing: 1.3
-                    color: muted
-                    Layout.topMargin: 14
-                    Layout.bottomMargin: 10
-                }
-                Repeater {
-                    model: [{
-                            "page": "apps",
-                            "name": "Applications",
-                            "mark": "▦"
-                        }, {
-                            "page": "processes",
-                            "name": "Processes",
-                            "mark": "≡"
-                        }, {
-                            "page": "performance",
-                            "name": "Performance",
-                            "mark": "↗"
-                        }, {
-                            "page": "history",
-                            "name": "App history",
-                            "mark": "◷"
-                        }, {
-                            "page": "startup",
-                            "name": "Startup apps",
-                            "mark": "↑"
-                        }, {
-                            "page": "users",
-                            "name": "Users",
-                            "mark": "♙"
-                        }, {
-                            "page": "services",
-                            "name": "Services",
-                            "mark": "⚙"
-                        }]
-                    delegate: Button {
-                        Layout.minimumHeight: 34
-                        required property var modelData
-                        Layout.fillWidth: true
-                        Layout.preferredHeight: 36
-                        text: modelData.mark + "   " + modelData.name
-                        flat: true
-                        checkable: true
-                        checked: backend.page === modelData.page || (modelData.page === "services" && backend.page === "system-services")
-                        contentItem: Label {
-                            text: parent.text
-                            color: parent.checked ? accent : fg
-                            verticalAlignment: Text.AlignVCenter
-                            leftPadding: 12
-                            font.bold: parent.checked
-                        }
-                        background: Rectangle {
-                            color: parent.checked ? Qt.tint(bg, Qt.rgba(accent.r, accent.g, accent.b, 0.12)) : "transparent"
-                            radius: 0
-                            border.color: parent.activeFocus ? accent : "transparent"
-                        }
-                        onClicked: backend.page = modelData.page
-                    }
-                }
-                Item {
-                    Layout.fillHeight: true
-                }
-                Label {
-                    text: "Refresh interval"
-                    font.pixelSize: root.fontSize("body", 12)
-                    color: muted
-                }
-                ComboBox {
-                    Layout.preferredHeight: 36
-                    Layout.fillWidth: true
-                    model: ["0.5 seconds", "1 second", "2 seconds", "5 seconds"]
-                    currentIndex: [500, 1000, 2000, 5000].indexOf(backend.interval)
-                    onActivated: backend.interval = [500, 1000, 2000, 5000][currentIndex]
-                }
-                PanelButton {
-                    Layout.minimumHeight: 34
-                    Layout.fillWidth: true
-                    text: backend.paused ? "Resume monitoring" : "Pause monitoring"
-                    onClicked: backend.paused = !backend.paused
-                }
-                Label {
-                    objectName: "versionLabel"
-                    text: "v0.1.0 · Preview"
-                    color: muted
-                    font.pixelSize: root.fontSize("body-small", 11)
-                    Layout.topMargin: 12
-                }
-            }
+        clip: true
+        contentWidth: Math.max(availableWidth, 850 * root.layoutScale)
+        contentHeight: Math.max(availableHeight, 560 * root.layoutScale)
+        ScrollBar.horizontal: ScrollBar {
+            objectName: "workspaceHorizontalScroll"
+            policy: workspaceScroll.contentWidth > workspaceScroll.availableWidth ? ScrollBar.AlwaysOn : ScrollBar.AlwaysOff
         }
-        Rectangle {
-            Layout.fillHeight: true
-            Layout.preferredWidth: 1
-            color: line
+        ScrollBar.vertical: ScrollBar {
+            policy: workspaceScroll.contentHeight > workspaceScroll.availableHeight ? ScrollBar.AlwaysOn : ScrollBar.AlwaysOff
         }
-        ColumnLayout {
-            Layout.fillWidth: true
-            Layout.fillHeight: true
-            Layout.margins: 18
-            spacing: 14
-            RowLayout {
-                Layout.fillWidth: true
-                Layout.minimumHeight: 62
+        RowLayout {
+            width: workspaceScroll.contentWidth
+            height: workspaceScroll.contentHeight
+            spacing: 0
+            Rectangle {
+                Layout.fillHeight: true
+                Layout.preferredWidth: 176 * root.layoutScale
+                color: panel
                 ColumnLayout {
-                    spacing: 4
-                    Label {
-                        text: root.pageNames[backend.page] || "Task Manager"
-                        font.pixelSize: root.fontSize("heading", 16)
+                    anchors.fill: parent
+                    anchors.margins: 16
+                    spacing: 7
+                    PlainLabel {
+                        text: "WORKSPACE"
+                        font.pixelSize: root.fontSize("body-small", 11)
                         font.bold: true
-                        color: fg
+                        font.letterSpacing: 1.3
+                        color: muted
+                        Layout.topMargin: 14
+                        Layout.bottomMargin: 10
                     }
-                    Label {
-                        text: backend.page === "apps" ? "Running windows and their processes" : backend.page === "processes" ? "Processes, resource use, and controls" : backend.page === "performance" ? "Live resource use · 60-second history" : "Monitor and manage your system"
+                    Repeater {
+                        model: [{
+                                "page": "apps",
+                                "name": "Applications",
+                                "mark": "▦"
+                            }, {
+                                "page": "processes",
+                                "name": "Processes",
+                                "mark": "≡"
+                            }, {
+                                "page": "performance",
+                                "name": "Performance",
+                                "mark": "↗"
+                            }, {
+                                "page": "history",
+                                "name": "App history",
+                                "mark": "◷"
+                            }, {
+                                "page": "startup",
+                                "name": "Startup apps",
+                                "mark": "↑"
+                            }, {
+                                "page": "users",
+                                "name": "Users",
+                                "mark": "♙"
+                            }, {
+                                "page": "services",
+                                "name": "Services",
+                                "mark": "⚙"
+                            }]
+                        delegate: Button {
+                            Layout.minimumHeight: 34
+                            required property var modelData
+                            Layout.fillWidth: true
+                            Layout.preferredHeight: 36 * root.layoutScale
+                            text: modelData.mark + "   " + modelData.name
+                            flat: true
+                            checkable: true
+                            checked: backend.page === modelData.page || (modelData.page === "services" && backend.page === "system-services")
+                            contentItem: PlainLabel {
+                                text: parent.text
+                                color: parent.checked ? accent : fg
+                                verticalAlignment: Text.AlignVCenter
+                                leftPadding: 12
+                                font.bold: parent.checked
+                            }
+                            background: Rectangle {
+                                color: parent.checked ? Qt.tint(bg, Qt.rgba(accent.r, accent.g, accent.b, 0.12)) : "transparent"
+                                radius: 0
+                                border.color: parent.activeFocus ? accent : "transparent"
+                            }
+                            onClicked: backend.page = modelData.page
+                        }
+                    }
+                    Item {
+                        Layout.fillHeight: true
+                    }
+                    PlainLabel {
+                        text: "Refresh interval"
                         font.pixelSize: root.fontSize("body", 12)
                         color: muted
                     }
-                }
-                Item {
-                    Layout.fillWidth: true
-                }
-                ColumnLayout {
-                    Layout.minimumWidth: 90
-                    Layout.preferredWidth: 90
-                    spacing: 3
-                    Label {
-                        text: "CPU"
-                        font.pixelSize: root.fontSize("body-small", 11)
+                    ComboBox {
+                        Layout.preferredHeight: 36 * root.layoutScale
+                        Layout.fillWidth: true
+                        model: ["0.5 seconds", "1 second", "2 seconds", "5 seconds"]
+                        currentIndex: [500, 1000, 2000, 5000].indexOf(backend.interval)
+                        onActivated: backend.interval = [500, 1000, 2000, 5000][currentIndex]
+                    }
+                    PanelButton {
+                        Layout.minimumHeight: 34
+                        Layout.fillWidth: true
+                        text: backend.paused ? "Resume monitoring" : "Pause monitoring"
+                        onClicked: backend.paused = !backend.paused
+                    }
+                    PlainLabel {
+                        objectName: "versionLabel"
+                        text: "v0.1.0 · Preview"
                         color: muted
-                    }
-                    Label {
-                        text: backend.percent(system.cpu && system.cpu.length ? system.cpu[0].usage : null)
-                        font.pixelSize: root.fontSize("display", 24)
-                        color: accent
-                    }
-                }
-                Rectangle {
-                    Layout.preferredHeight: 36
-                    Layout.preferredWidth: 1
-                    color: line
-                    Layout.leftMargin: 12
-                    Layout.rightMargin: 12
-                }
-                ColumnLayout {
-                    Layout.minimumWidth: 90
-                    Layout.preferredWidth: 90
-                    spacing: 3
-                    Label {
-                        text: "MEMORY"
                         font.pixelSize: root.fontSize("body-small", 11)
-                        color: muted
+                        Layout.topMargin: 12
                     }
-                    Label {
-                        text: mem.total ? backend.percent(100 * mem.used / mem.total) : "—"
-                        font.pixelSize: root.fontSize("display", 24)
-                        color: fg
-                    }
-                }
-            }
-            RowLayout {
-                visible: backend.page !== "performance"
-                Layout.fillWidth: true
-                spacing: 12
-                TextField {
-                    id: search
-                    objectName: "searchField"
-                    Layout.preferredHeight: 38
-                    Layout.fillWidth: true
-                    placeholderText: "Search by name" + (backend.page === "processes" ? ", user or PID" : "") + "    Ctrl+F"
-                    text: backend.query
-                    onTextEdited: backend.query = text
-                    selectByMouse: true
-                    Accessible.name: "Search processes and applications"
-                }
-                PanelButton {
-                    visible: backend.page === "processes"
-                    text: "Columns"
-                    onClicked: columnsMenu.popup()
-                }
-                CheckBox {
-                    visible: backend.page === "processes"
-                    text: "Process tree"
-                    checked: backend.tree
-                    onToggled: backend.tree = checked
-                }
-                ToolButton {
-                    Layout.minimumHeight: 34
-                    text: backend.descending ? "↓" : "↑"
-                    Accessible.name: "Reverse sort order"
-                    onClicked: backend.descending = !backend.descending
                 }
             }
             Rectangle {
-                visible: root.processPage
+                Layout.fillHeight: true
+                Layout.preferredWidth: 1
+                color: line
+            }
+            ColumnLayout {
                 Layout.fillWidth: true
                 Layout.fillHeight: true
-                color: "transparent"
-                border.color: line
-                radius: 0
-                ColumnLayout {
-                    anchors.fill: parent
-                    spacing: 0
-                    Row {
+                Layout.margins: 18
+                spacing: 14
+                RowLayout {
+                    Layout.fillWidth: true
+                    Layout.minimumHeight: 62
+                    ColumnLayout {
+                        spacing: 4
+                        PlainLabel {
+                            text: root.pageNames[backend.page] || "Task Manager"
+                            font.pixelSize: root.fontSize("heading", 16)
+                            font.bold: true
+                            color: fg
+                        }
+                        PlainLabel {
+                            text: backend.page === "apps" ? "Running windows and their processes" : backend.page === "processes" ? "Processes, resource use, and controls" : backend.page === "performance" ? "Live resource use · 60-second history" : "Monitor and manage your system"
+                            font.pixelSize: root.fontSize("body", 12)
+                            color: muted
+                        }
+                    }
+                    Item {
                         Layout.fillWidth: true
-                        Layout.preferredHeight: 40
-                        Layout.leftMargin: 14
-                        Layout.rightMargin: 14
-                        spacing: 0
-                        Repeater {
-                            model: root.columns
-                            delegate: ToolButton {
-                                Layout.minimumHeight: 34
-                                required property var modelData
-                                width: modelData.width === -1 ? root.nameColumnWidth(parent.width) : modelData.width
-                                height: 40
-                                text: modelData.label + (backend.sort === modelData.key ? (backend.descending ? " ↓" : " ↑") : "")
-                                font.pixelSize: root.fontSize("body-small", 11)
-                                font.bold: true
-                                onClicked: {
-                                    if (backend.sort === modelData.key)
-                                        backend.descending = !backend.descending;
-                                    else
-                                        backend.sort = modelData.key;
-                                }
-                            }
+                    }
+                    ColumnLayout {
+                        Layout.minimumWidth: 90
+                        Layout.preferredWidth: 90
+                        spacing: 3
+                        PlainLabel {
+                            text: "CPU"
+                            font.pixelSize: root.fontSize("body-small", 11)
+                            color: muted
+                        }
+                        PlainLabel {
+                            text: backend.percent(system.cpu && system.cpu.length ? system.cpu[0].usage : null)
+                            font.pixelSize: root.fontSize("display", 24)
+                            color: accent
                         }
                     }
                     Rectangle {
-                        Layout.fillWidth: true
-                        Layout.preferredHeight: 1
+                        Layout.preferredHeight: 36 * root.layoutScale
+                        Layout.preferredWidth: 1
                         color: line
+                        Layout.leftMargin: 12
+                        Layout.rightMargin: 12
                     }
-                    ListView {
-                        id: list
-                        objectName: "processList"
-                        Layout.fillWidth: true
-                        Layout.fillHeight: true
-                        clip: true
-                        model: root.processPage ? backend.rows : null
-                        boundsBehavior: Flickable.StopAtBounds
-                        ScrollBar.vertical: ScrollBar {
-                        }
-                        Keys.onUpPressed: backend.selectOffset(-1)
-                        Keys.onDownPressed: backend.selectOffset(1)
-                        Keys.onMenuPressed: contextMenu.popup()
-                        delegate: Rectangle {
-                            id: row
-                            required property var entry
-                            required property int index
-                            width: list.width
-                            height: 38
-                            color: backend.selected === entry.key ? Qt.tint(bg, Qt.rgba(accent.r, accent.g, accent.b, 0.15)) : (hover.hovered ? panel : "transparent")
-                            Rectangle {
-                                width: 3
-                                height: parent.height
-                                color: accent
-                                visible: backend.selected === entry.key
-                            }
-                            HoverHandler {
-                                id: hover
-                            }
-                            TapHandler {
-                                acceptedButtons: Qt.LeftButton | Qt.RightButton
-                                onTapped: function (point, button) {
-                                    backend.selected = row.entry.key;
-                                    list.forceActiveFocus();
-                                    if (button === Qt.RightButton)
-                                        contextMenu.popup();
-                                }
-                            }
-                            Row {
-                                anchors.fill: parent
-                                anchors.leftMargin: 16
-                                anchors.rightMargin: 16
-                                spacing: 0
-                                RowLayout {
-                                    width: root.nameColumnWidth(parent.width)
-                                    height: parent.height
-                                    spacing: 10
-                                    Item {
-                                        visible: (row.entry.depth || 0) > 0
-                                        Layout.preferredWidth: (row.entry.depth || 0) * 12
-                                        Layout.fillHeight: true
-                                    }
-                                    Image {
-                                        visible: backend.page === "apps"
-                                        source: backend.page === "apps" ? "image://icons/" + (entry.icon || "application-x-executable") : ""
-                                        Layout.preferredWidth: 24
-                                        Layout.preferredHeight: 24
-                                        sourceSize.width: 32
-                                        sourceSize.height: 32
-                                    }
-                                    Label {
-                                        Layout.fillWidth: true
-                                        text: entry.name
-                                        color: fg
-                                        elide: Text.ElideRight
-                                        font.bold: backend.selected === entry.key
-                                    }
-                                    Label {
-                                        visible: !!entry.protected
-                                        text: "Protected"
-                                        font.pixelSize: root.fontSize("caption", 10)
-                                        color: muted
-                                        Layout.rightMargin: 8
-                                    }
-                                }
-                                Repeater {
-                                    model: root.columns.slice(1)
-                                    delegate: Label {
-                                        required property var modelData
-                                        width: modelData.width
-                                        height: parent.height
-                                        verticalAlignment: Text.AlignVCenter
-                                        horizontalAlignment: Text.AlignRight
-                                        text: root.cell(row.entry, modelData.key)
-                                        color: fg
-                                        font.pixelSize: 12
-                                        rightPadding: 8
-                                        elide: Text.ElideRight
-                                    }
-                                }
-                            }
-                            Accessible.role: Accessible.ListItem
-                            Accessible.name: entry.name
-                            Accessible.selected: backend.selected === entry.key
-                        }
-                        Label {
-                            anchors.centerIn: parent
-                            visible: list.count === 0
-                            width: parent.width - 40
-                            wrapMode: Text.WordWrap
-                            horizontalAlignment: Text.AlignHCenter
+                    ColumnLayout {
+                        Layout.minimumWidth: 90
+                        Layout.preferredWidth: 90
+                        spacing: 3
+                        PlainLabel {
+                            text: "MEMORY"
+                            font.pixelSize: root.fontSize("body-small", 11)
                             color: muted
-                            text: backend.query ? "No matching results" : backend.page === "apps" ? (snap.desktop_error ? "Application discovery needs a Hyprland session.\nProcesses and Performance are available." : "No application windows found.") : "Waiting for process data…"
+                        }
+                        PlainLabel {
+                            text: mem.total ? backend.percent(100 * mem.used / mem.total) : "—"
+                            font.pixelSize: root.fontSize("display", 24)
+                            color: fg
                         }
                     }
                 }
-            }
-            ManagementView {
-                visible: !root.processPage && backend.page !== "performance"
-                Layout.fillWidth: true
-                Layout.fillHeight: true
-                bg: root.bg
-                fg: root.fg
-                accent: root.accent
-                line: root.line
-                muted: root.muted
-                onRequest: function (request) {
-                    root.manage(request);
-                }
-                onInspectLogs: backend.loadLogs()
-            }
-            ScrollView {
-                id: perf
-                Layout.minimumHeight: 0
-                Layout.preferredHeight: 1
-                visible: backend.page === "performance"
-                Layout.fillWidth: true
-                Layout.fillHeight: true
-                clip: true
-                contentWidth: availableWidth
-                ColumnLayout {
-                    width: perf.availableWidth
-                    spacing: 20
-                    Label {
-                        text: (system.cpu_model || "CPU") + " · " + (system.process_count || 0) + " processes / " + (system.thread_count || 0) + " threads"
+                RowLayout {
+                    visible: backend.page !== "performance"
+                    Layout.fillWidth: true
+                    spacing: 12
+                    TextField {
+                        id: search
+                        objectName: "searchField"
+                        Layout.preferredHeight: 38
                         Layout.fillWidth: true
-                        wrapMode: Text.Wrap
-                        color: muted
-                        font.pixelSize: root.fontSize("body", 12)
+                        placeholderText: "Search by name" + (backend.page === "processes" ? ", user or PID" : "") + "    Ctrl+F"
+                        text: backend.query
+                        onTextEdited: backend.query = text
+                        selectByMouse: true
+                        Accessible.name: "Search processes and applications"
                     }
-                    RowLayout {
-                        Layout.fillWidth: true
-                        spacing: 24
-                        ColumnLayout {
-                            Layout.fillWidth: true
-                            Label {
-                                text: "CPU HISTORY"
-                                font.pixelSize: root.fontSize("body-small", 11)
-                                font.bold: true
-                                color: muted
-                            }
-                            HistoryChart {
-                                Layout.fillWidth: true
-                                Layout.preferredHeight: 135
-                                points: backend.history
-                                field: "cpu"
-                                ink: accent
-                                grid: line
-                            }
-                            Label {
-                                text: (system.cores || 0) + " logical CPUs · " + (system.cpu_mhz ? (system.cpu_mhz / 1000).toFixed(2) + " GHz" : "60 seconds")
-                                color: muted
-                                font.pixelSize: root.fontSize("body", 12)
-                            }
-                        }
-                        ColumnLayout {
-                            Layout.fillWidth: true
-                            Label {
-                                text: "MEMORY HISTORY"
-                                font.pixelSize: root.fontSize("body-small", 11)
-                                font.bold: true
-                                color: muted
-                            }
-                            HistoryChart {
-                                Layout.fillWidth: true
-                                Layout.preferredHeight: 135
-                                points: backend.history
-                                field: "memory"
-                                ink: fg
-                                grid: line
-                            }
-                            Label {
-                                text: backend.bytes(mem.used || 0) + " / " + backend.bytes(mem.total || 0)
-                                color: muted
-                                font.pixelSize: root.fontSize("body", 12)
-                            }
-                        }
+                    PanelButton {
+                        visible: backend.page === "processes"
+                        text: "Columns"
+                        onClicked: columnsMenu.popup()
                     }
                     CheckBox {
-                        text: "Show per-core history"
-                        checked: root.perCoreGraphs
-                        onToggled: root.perCoreGraphs = checked
+                        visible: backend.page === "processes"
+                        text: "Process tree"
+                        checked: backend.tree
+                        onToggled: backend.tree = checked
                     }
-                    Flow {
-                        Layout.fillWidth: true
-                        spacing: 8
-                        Repeater {
-                            model: system.cpu ? system.cpu.slice(1) : []
-                            delegate: Rectangle {
-                                required property var modelData
-                                width: 96
-                                height: root.perCoreGraphs ? 70 : 30
-                                color: panel
+                    ToolButton {
+                        Layout.minimumHeight: 34
+                        text: backend.descending ? "↓" : "↑"
+                        Accessible.name: "Reverse sort order"
+                        onClicked: backend.descending = !backend.descending
+                    }
+                }
+                Rectangle {
+                    visible: root.processPage
+                    Layout.fillWidth: true
+                    Layout.fillHeight: true
+                    color: "transparent"
+                    border.color: line
+                    radius: 0
+                    TableViewport {
+                        objectName: "processTableViewport"
+                        anchors.fill: parent
+                        minimumContentWidth: Theme.tableWidth(root.columns, root.layoutScale) + 32
+                        ColumnLayout {
+                            anchors.fill: parent
+                            spacing: 0
+                            Row {
+                                Layout.fillWidth: true
+                                Layout.preferredHeight: 40 * root.layoutScale
+                                Layout.leftMargin: 16
+                                Layout.rightMargin: 16
+                                spacing: 0
+                                Repeater {
+                                    model: root.columns
+                                    delegate: ToolButton {
+                                        Layout.minimumHeight: 34
+                                        required property var modelData
+                                        width: modelData.width === -1 ? root.nameColumnWidth(parent.width) : modelData.width * root.layoutScale
+                                        height: 40 * root.layoutScale
+                                        text: modelData.label + (backend.sort === modelData.key ? (backend.descending ? " ↓" : " ↑") : "")
+                                        font.pixelSize: root.fontSize("body-small", 11)
+                                        font.bold: true
+                                        onClicked: {
+                                            if (backend.sort === modelData.key)
+                                                backend.descending = !backend.descending;
+                                            else
+                                                backend.sort = modelData.key;
+                                        }
+                                    }
+                                }
+                            }
+                            Rectangle {
+                                Layout.fillWidth: true
+                                Layout.preferredHeight: 1
+                                color: line
+                            }
+                            ListView {
+                                id: list
+                                objectName: "processList"
+                                Layout.fillWidth: true
+                                Layout.fillHeight: true
+                                clip: true
+                                model: root.processPage ? backend.rows : null
+                                boundsBehavior: Flickable.StopAtBounds
+                                ScrollBar.vertical: ScrollBar {
+                                }
+                                Keys.onUpPressed: backend.selectOffset(-1)
+                                Keys.onDownPressed: backend.selectOffset(1)
+                                Keys.onMenuPressed: contextMenu.popup()
+                                delegate: Rectangle {
+                                    id: row
+                                    required property var entry
+                                    required property int index
+                                    width: list.width
+                                    height: 38 * root.layoutScale
+                                    color: backend.selected === entry.key ? Qt.tint(bg, Qt.rgba(accent.r, accent.g, accent.b, 0.15)) : (hover.hovered ? panel : "transparent")
+                                    Rectangle {
+                                        width: 3
+                                        height: parent.height
+                                        color: accent
+                                        visible: backend.selected === entry.key
+                                    }
+                                    HoverHandler {
+                                        id: hover
+                                    }
+                                    TapHandler {
+                                        acceptedButtons: Qt.LeftButton | Qt.RightButton
+                                        onTapped: function (point, button) {
+                                            backend.selected = row.entry.key;
+                                            list.forceActiveFocus();
+                                            if (button === Qt.RightButton)
+                                                contextMenu.popup();
+                                        }
+                                    }
+                                    Row {
+                                        anchors.fill: parent
+                                        anchors.leftMargin: 16
+                                        anchors.rightMargin: 16
+                                        spacing: 0
+                                        RowLayout {
+                                            width: root.nameColumnWidth(parent.width)
+                                            height: parent.height
+                                            spacing: 10
+                                            Item {
+                                                visible: (row.entry.depth || 0) > 0
+                                                Layout.preferredWidth: (row.entry.depth || 0) * 12
+                                                Layout.fillHeight: true
+                                            }
+                                            Image {
+                                                visible: backend.page === "apps"
+                                                source: backend.page === "apps" ? "image://icons/" + (entry.icon || "application-x-executable") : ""
+                                                Layout.preferredWidth: 24
+                                                Layout.preferredHeight: 24
+                                                sourceSize.width: 32
+                                                sourceSize.height: 32
+                                            }
+                                            PlainLabel {
+                                                Layout.fillWidth: true
+                                                text: entry.name
+                                                color: fg
+                                                elide: Text.ElideRight
+                                                font.bold: backend.selected === entry.key
+                                            }
+                                            PlainLabel {
+                                                visible: !!entry.protected
+                                                text: "Protected"
+                                                font.pixelSize: root.fontSize("caption", 10)
+                                                color: muted
+                                                Layout.rightMargin: 8
+                                            }
+                                        }
+                                        Repeater {
+                                            model: root.columns.slice(1)
+                                            delegate: PlainLabel {
+                                                required property var modelData
+                                                width: modelData.width * root.layoutScale
+                                                height: parent.height
+                                                verticalAlignment: Text.AlignVCenter
+                                                horizontalAlignment: Text.AlignRight
+                                                text: root.cell(row.entry, modelData.key)
+                                                color: fg
+                                                font.pixelSize: root.fontSize("body", 12)
+                                                rightPadding: 8
+                                                elide: Text.ElideRight
+                                            }
+                                        }
+                                    }
+                                    Accessible.role: Accessible.ListItem
+                                    Accessible.name: entry.name
+                                    Accessible.selected: backend.selected === entry.key
+                                }
+                                PlainLabel {
+                                    anchors.centerIn: parent
+                                    visible: list.count === 0
+                                    width: parent.width - 40
+                                    wrapMode: Text.WordWrap
+                                    horizontalAlignment: Text.AlignHCenter
+                                    color: muted
+                                    text: backend.query ? "No matching results" : backend.page === "apps" ? (snap.desktop_error ? "Application discovery needs a Hyprland session.\nProcesses and Performance are available." : "No application windows found.") : "Waiting for process data…"
+                                }
+                            }
+                        }
+                    }
+                }
+                ManagementView {
+                    textScale: root.layoutScale
+                    visible: !root.processPage && backend.page !== "performance"
+                    Layout.fillWidth: true
+                    Layout.fillHeight: true
+                    bg: root.bg
+                    fg: root.fg
+                    accent: root.accent
+                    line: root.line
+                    muted: root.muted
+                    onRequest: function (request) {
+                        root.manage(request);
+                    }
+                    onInspectLogs: backend.loadLogs()
+                }
+                ScrollView {
+                    id: perf
+                    Layout.minimumHeight: 0
+                    Layout.preferredHeight: 1
+                    visible: backend.page === "performance"
+                    Layout.fillWidth: true
+                    Layout.fillHeight: true
+                    clip: true
+                    contentWidth: availableWidth
+                    ColumnLayout {
+                        width: perf.availableWidth
+                        spacing: 20
+                        PlainLabel {
+                            text: (system.cpu_model || "CPU") + " · " + (system.process_count || 0) + " processes / " + (system.thread_count || 0) + " threads"
+                            Layout.fillWidth: true
+                            wrapMode: Text.Wrap
+                            color: muted
+                            font.pixelSize: root.fontSize("body", 12)
+                        }
+                        RowLayout {
+                            Layout.fillWidth: true
+                            spacing: 24
+                            ColumnLayout {
+                                Layout.fillWidth: true
+                                PlainLabel {
+                                    text: "CPU HISTORY"
+                                    font.pixelSize: root.fontSize("body-small", 11)
+                                    font.bold: true
+                                    color: muted
+                                }
                                 HistoryChart {
-                                    anchors.fill: parent
-                                    anchors.topMargin: 28
-                                    visible: root.perCoreGraphs
+                                    Layout.fillWidth: true
+                                    Layout.preferredHeight: 135
                                     points: backend.history
-                                    field: modelData.name
+                                    field: "cpu"
                                     ink: accent
                                     grid: line
                                 }
-                                radius: 3
-                                Label {
-                                    anchors.horizontalCenter: parent.horizontalCenter
-                                    y: 8
-                                    text: modelData.name + "  " + backend.percent(modelData.usage)
-                                    font.pixelSize: root.fontSize("body-small", 11)
-                                    color: fg
-                                }
-                            }
-                        }
-                    }
-                    Label {
-                        text: "Available: " + backend.bytes(mem.available || 0) + "    Cache: " + backend.bytes(mem.cache || 0) + "    Swap: " + backend.bytes(mem.swap_used || 0) + " / " + backend.bytes(mem.swap_total || 0)
-                        color: muted
-                        font.pixelSize: root.fontSize("body", 12)
-                        wrapMode: Text.WordWrap
-                        Layout.fillWidth: true
-                    }
-                    Rectangle {
-                        Layout.fillWidth: true
-                        Layout.preferredHeight: 1
-                        color: line
-                    }
-                    Label {
-                        text: "NETWORK"
-                        font.pixelSize: root.fontSize("body-small", 11)
-                        font.bold: true
-                        color: muted
-                    }
-                    Repeater {
-                        model: system.network || []
-                        delegate: ColumnLayout {
-                            required property var modelData
-                            Layout.fillWidth: true
-                            RowLayout {
-                                Layout.fillWidth: true
-                                Label {
-                                    text: modelData.name + (modelData.state ? " · " + modelData.state : "")
-                                    Layout.fillWidth: true
-                                    color: fg
-                                }
-                                Label {
-                                    text: "↓ " + root.rate(modelData.first_rate) + "     ↑ " + root.rate(modelData.second_rate)
-                                    color: fg
-                                    font.family: "monospace"
-                                }
-                                Label {
-                                    text: backend.bytes(modelData.first) + " received"
-                                    color: muted
-                                    Layout.preferredWidth: 150
-                                    horizontalAlignment: Text.AlignRight
-                                }
-                            }
-                            HistoryChart {
-                                Layout.fillWidth: true
-                                Layout.preferredHeight: 52
-                                points: backend.history
-                                autoScale: true
-                                field: "network:" + modelData.name + ":first"
-                                field2: "network:" + modelData.name + ":second"
-                                ink: accent
-                                secondInk: muted
-                                grid: line
-                            }
-                        }
-                    }
-                    Rectangle {
-                        Layout.fillWidth: true
-                        Layout.preferredHeight: 1
-                        color: line
-                    }
-                    Label {
-                        text: "DISK ACTIVITY"
-                        font.pixelSize: root.fontSize("body-small", 11)
-                        font.bold: true
-                        color: muted
-                    }
-                    Repeater {
-                        model: system.disks || []
-                        delegate: ColumnLayout {
-                            required property var modelData
-                            Layout.fillWidth: true
-                            RowLayout {
-                                Layout.fillWidth: true
-                                Label {
-                                    text: modelData.name
-                                    Layout.fillWidth: true
-                                    color: fg
-                                }
-                                Label {
-                                    text: "Read " + root.rate(modelData.first_rate) + "     Write " + root.rate(modelData.second_rate) + " · " + backend.percent(modelData.active_percent) + " active"
-                                    color: fg
-                                    font.family: "monospace"
-                                }
-                            }
-                            HistoryChart {
-                                Layout.fillWidth: true
-                                Layout.preferredHeight: 52
-                                points: backend.history
-                                autoScale: true
-                                field: "disks:" + modelData.name + ":first"
-                                field2: "disks:" + modelData.name + ":second"
-                                ink: accent
-                                secondInk: muted
-                                grid: line
-                            }
-                        }
-                    }
-                    Label {
-                        visible: !(system.disks || []).length
-                        text: "No readable block-device counters"
-                        color: muted
-                    }
-                    Label {
-                        text: "VOLUMES"
-                        font.pixelSize: root.fontSize("body-small", 11)
-                        font.bold: true
-                        color: muted
-                    }
-                    Repeater {
-                        model: system.mounts || []
-                        delegate: ColumnLayout {
-                            required property var modelData
-                            Layout.fillWidth: true
-                            spacing: 5
-                            RowLayout {
-                                Layout.fillWidth: true
-                                Label {
-                                    text: modelData.name
-                                    Layout.fillWidth: true
-                                    color: fg
-                                    elide: Text.ElideMiddle
-                                }
-                                Label {
-                                    text: backend.bytes(modelData.available) + " available / " + backend.bytes(modelData.total)
+                                PlainLabel {
+                                    text: (system.cores || 0) + " logical CPUs · " + (system.cpu_mhz ? (system.cpu_mhz / 1000).toFixed(2) + " GHz" : "60 seconds")
                                     color: muted
                                     font.pixelSize: root.fontSize("body", 12)
                                 }
                             }
-                            ProgressBar {
+                            ColumnLayout {
                                 Layout.fillWidth: true
-                                value: modelData.total ? modelData.used / modelData.total : 0
+                                PlainLabel {
+                                    text: "MEMORY HISTORY"
+                                    font.pixelSize: root.fontSize("body-small", 11)
+                                    font.bold: true
+                                    color: muted
+                                }
+                                HistoryChart {
+                                    Layout.fillWidth: true
+                                    Layout.preferredHeight: 135
+                                    points: backend.history
+                                    field: "memory"
+                                    ink: fg
+                                    grid: line
+                                }
+                                PlainLabel {
+                                    text: backend.bytes(mem.used || 0) + " / " + backend.bytes(mem.total || 0)
+                                    color: muted
+                                    font.pixelSize: root.fontSize("body", 12)
+                                }
                             }
                         }
-                    }
-                    Rectangle {
-                        Layout.fillWidth: true
-                        Layout.preferredHeight: 1
-                        color: line
-                    }
-                    Label {
-                        text: "GPU"
-                        color: muted
-                        font.pixelSize: root.fontSize("body-small", 11)
-                        font.bold: true
-                    }
-                    Repeater {
-                        model: system.gpus || []
-                        delegate: ColumnLayout {
-                            required property var modelData
+                        CheckBox {
+                            text: "Show per-core history"
+                            checked: root.perCoreGraphs
+                            onToggled: root.perCoreGraphs = checked
+                        }
+                        Flow {
                             Layout.fillWidth: true
-                            RowLayout {
+                            spacing: 8
+                            Repeater {
+                                model: system.cpu ? system.cpu.slice(1) : []
+                                delegate: Rectangle {
+                                    required property var modelData
+                                    width: 96
+                                    height: root.perCoreGraphs ? 70 : 30
+                                    color: panel
+                                    HistoryChart {
+                                        anchors.fill: parent
+                                        anchors.topMargin: 28
+                                        visible: root.perCoreGraphs
+                                        points: backend.history
+                                        field: modelData.name
+                                        ink: accent
+                                        grid: line
+                                    }
+                                    radius: 3
+                                    PlainLabel {
+                                        anchors.horizontalCenter: parent.horizontalCenter
+                                        y: 8
+                                        text: modelData.name + "  " + backend.percent(modelData.usage)
+                                        font.pixelSize: root.fontSize("body-small", 11)
+                                        color: fg
+                                    }
+                                }
+                            }
+                        }
+                        PlainLabel {
+                            text: "Available: " + backend.bytes(mem.available || 0) + "    Cache: " + backend.bytes(mem.cache || 0) + "    Swap: " + backend.bytes(mem.swap_used || 0) + " / " + backend.bytes(mem.swap_total || 0)
+                            color: muted
+                            font.pixelSize: root.fontSize("body", 12)
+                            wrapMode: Text.WordWrap
+                            Layout.fillWidth: true
+                        }
+                        Rectangle {
+                            Layout.fillWidth: true
+                            Layout.preferredHeight: 1
+                            color: line
+                        }
+                        PlainLabel {
+                            text: "NETWORK"
+                            font.pixelSize: root.fontSize("body-small", 11)
+                            font.bold: true
+                            color: muted
+                        }
+                        Repeater {
+                            model: system.network || []
+                            delegate: ColumnLayout {
+                                required property var modelData
                                 Layout.fillWidth: true
-                                Label {
-                                    text: modelData.name + " · " + modelData.driver
+                                RowLayout {
                                     Layout.fillWidth: true
+                                    PlainLabel {
+                                        text: modelData.name + (modelData.state ? " · " + modelData.state : "")
+                                        Layout.fillWidth: true
+                                        color: fg
+                                    }
+                                    PlainLabel {
+                                        text: "↓ " + root.rate(modelData.first_rate) + "     ↑ " + root.rate(modelData.second_rate)
+                                        color: fg
+                                        font.family: "monospace"
+                                    }
+                                    PlainLabel {
+                                        text: backend.bytes(modelData.first) + " received"
+                                        color: muted
+                                        Layout.preferredWidth: 150
+                                        horizontalAlignment: Text.AlignRight
+                                    }
+                                }
+                                HistoryChart {
+                                    Layout.fillWidth: true
+                                    Layout.preferredHeight: 52
+                                    points: backend.history
+                                    autoScale: true
+                                    field: "network:" + modelData.name + ":first"
+                                    field2: "network:" + modelData.name + ":second"
+                                    ink: accent
+                                    secondInk: muted
+                                    grid: line
+                                }
+                            }
+                        }
+                        Rectangle {
+                            Layout.fillWidth: true
+                            Layout.preferredHeight: 1
+                            color: line
+                        }
+                        PlainLabel {
+                            text: "DISK ACTIVITY"
+                            font.pixelSize: root.fontSize("body-small", 11)
+                            font.bold: true
+                            color: muted
+                        }
+                        Repeater {
+                            model: system.disks || []
+                            delegate: ColumnLayout {
+                                required property var modelData
+                                Layout.fillWidth: true
+                                RowLayout {
+                                    Layout.fillWidth: true
+                                    PlainLabel {
+                                        text: modelData.name
+                                        Layout.fillWidth: true
+                                        color: fg
+                                    }
+                                    PlainLabel {
+                                        text: "Read " + root.rate(modelData.first_rate) + "     Write " + root.rate(modelData.second_rate) + " · " + backend.percent(modelData.active_percent) + " active"
+                                        color: fg
+                                        font.family: "monospace"
+                                    }
+                                }
+                                HistoryChart {
+                                    Layout.fillWidth: true
+                                    Layout.preferredHeight: 52
+                                    points: backend.history
+                                    autoScale: true
+                                    field: "disks:" + modelData.name + ":first"
+                                    field2: "disks:" + modelData.name + ":second"
+                                    ink: accent
+                                    secondInk: muted
+                                    grid: line
+                                }
+                            }
+                        }
+                        PlainLabel {
+                            visible: !(system.disks || []).length
+                            text: "No readable block-device counters"
+                            color: muted
+                        }
+                        PlainLabel {
+                            text: "VOLUMES"
+                            font.pixelSize: root.fontSize("body-small", 11)
+                            font.bold: true
+                            color: muted
+                        }
+                        PlainLabel {
+                            Layout.fillWidth: true
+                            wrapMode: Text.Wrap
+                            color: muted
+                            text: system.mounts_status || ""
+                        }
+                        Repeater {
+                            model: system.mounts || []
+                            delegate: ColumnLayout {
+                                required property var modelData
+                                Layout.fillWidth: true
+                                spacing: 5
+                                RowLayout {
+                                    Layout.fillWidth: true
+                                    PlainLabel {
+                                        text: modelData.name
+                                        Layout.fillWidth: true
+                                        color: fg
+                                        elide: Text.ElideMiddle
+                                    }
+                                    PlainLabel {
+                                        text: backend.bytes(modelData.available) + " available / " + backend.bytes(modelData.total)
+                                        color: muted
+                                        font.pixelSize: root.fontSize("body", 12)
+                                    }
+                                }
+                                ProgressBar {
+                                    Layout.fillWidth: true
+                                    value: modelData.total ? modelData.used / modelData.total : 0
+                                }
+                            }
+                        }
+                        Rectangle {
+                            Layout.fillWidth: true
+                            Layout.preferredHeight: 1
+                            color: line
+                        }
+                        PlainLabel {
+                            text: "GPU"
+                            color: muted
+                            font.pixelSize: root.fontSize("body-small", 11)
+                            font.bold: true
+                        }
+                        Repeater {
+                            model: system.gpus || []
+                            delegate: ColumnLayout {
+                                required property var modelData
+                                Layout.fillWidth: true
+                                RowLayout {
+                                    Layout.fillWidth: true
+                                    PlainLabel {
+                                        text: modelData.name + " · " + modelData.driver
+                                        Layout.fillWidth: true
+                                        color: fg
+                                    }
+                                    PlainLabel {
+                                        text: backend.percent(modelData.usage)
+                                        color: accent
+                                    }
+                                }
+                                HistoryChart {
+                                    Layout.fillWidth: true
+                                    Layout.preferredHeight: 70
+                                    points: backend.history
+                                    field: "gpu:" + modelData.device
+                                    ink: accent
+                                    grid: line
+                                }
+                                PlainLabel {
+                                    text: modelData.memory_total ? backend.bytes(modelData.memory_used || 0) + " / " + backend.bytes(modelData.memory_total) + " VRAM" : "VRAM counter unavailable"
                                     color: fg
                                 }
-                                Label {
-                                    text: backend.percent(modelData.usage)
-                                    color: accent
+                                PlainLabel {
+                                    text: modelData.source
+                                    Layout.fillWidth: true
+                                    wrapMode: Text.Wrap
+                                    color: muted
+                                    font.pixelSize: root.fontSize("body-small", 11)
                                 }
                             }
-                            HistoryChart {
-                                Layout.fillWidth: true
-                                Layout.preferredHeight: 70
-                                points: backend.history
-                                field: "gpu:" + modelData.device
-                                ink: accent
-                                grid: line
-                            }
-                            Label {
-                                text: modelData.memory_total ? backend.bytes(modelData.memory_used || 0) + " / " + backend.bytes(modelData.memory_total) + " VRAM" : "VRAM counter unavailable"
-                                color: fg
-                            }
-                            Label {
-                                text: modelData.source
-                                Layout.fillWidth: true
-                                wrapMode: Text.Wrap
-                                color: muted
-                                font.pixelSize: root.fontSize("body-small", 11)
-                            }
                         }
-                    }
-                    Label {
-                        visible: !(system.gpus || []).length
-                        text: "No readable GPU devices in this session"
-                        color: muted
-                    }
-                    Label {
-                        text: "HARDWARE"
-                        font.pixelSize: root.fontSize("body-small", 11)
-                        font.bold: true
-                        color: muted
-                    }
-                    Label {
-                        text: system.hardware ? system.hardware.gpu_status : "GPU metrics unavailable"
-                        color: muted
-                    }
-                    Repeater {
-                        model: system.hardware ? system.hardware.batteries : []
-                        delegate: Label {
-                            required property var modelData
-                            text: modelData.name + "   " + modelData.percent + "%   " + modelData.status
-                            color: fg
+                        PlainLabel {
+                            visible: !(system.gpus || []).length
+                            text: "No readable GPU devices in this session"
+                            color: muted
                         }
-                    }
-                    Flow {
-                        Layout.fillWidth: true
-                        spacing: 16
+                        PlainLabel {
+                            text: "HARDWARE"
+                            font.pixelSize: root.fontSize("body-small", 11)
+                            font.bold: true
+                            color: muted
+                        }
+                        PlainLabel {
+                            text: system.hardware ? system.hardware.gpu_status : "GPU metrics unavailable"
+                            color: muted
+                        }
                         Repeater {
-                            model: system.hardware ? system.hardware.sensors : []
-                            delegate: Label {
+                            model: system.hardware ? system.hardware.batteries : []
+                            delegate: PlainLabel {
                                 required property var modelData
-                                text: modelData.name + "  " + modelData.celsius.toFixed(1) + " °C"
+                                text: modelData.name + "   " + modelData.percent + "%   " + modelData.status
                                 color: fg
                             }
                         }
-                    }
-                    Label {
-                        text: "Load averages: " + (system.load || "—") + "    Uptime: " + (system.uptime ? Math.floor(system.uptime / 3600) + "h " + Math.floor(system.uptime % 3600 / 60) + "m" : "—")
-                        color: muted
-                        font.pixelSize: root.fontSize("body", 12)
-                    }
-                }
-            }
-            ColumnLayout {
-                visible: root.processPage
-                Layout.fillWidth: true
-                spacing: 12
-                ScrollView {
-                    Layout.fillWidth: true
-                    Layout.preferredHeight: 70
-                    clip: true
-                    TextArea {
-                        text: {
-                            var key = backend.selected;
-                            var snap = backend.snapshot;
-                            return backend.details();
+                        Flow {
+                            Layout.fillWidth: true
+                            spacing: 16
+                            Repeater {
+                                model: system.hardware ? system.hardware.sensors : []
+                                delegate: PlainLabel {
+                                    required property var modelData
+                                    text: modelData.name + "  " + modelData.celsius.toFixed(1) + " °C"
+                                    color: fg
+                                }
+                            }
                         }
-                        readOnly: true
-                        selectByMouse: true
-                        wrapMode: TextEdit.Wrap
-                        color: muted
-                        font.pixelSize: root.fontSize("body", 12)
-                        background: null
+                        PlainLabel {
+                            text: "Load averages: " + (system.load || "—") + "    Uptime: " + (system.uptime ? Math.floor(system.uptime / 3600) + "h " + Math.floor(system.uptime % 3600 / 60) + "m" : "—")
+                            color: muted
+                            font.pixelSize: root.fontSize("body", 12)
+                        }
                     }
                 }
-                RowLayout {
+                ColumnLayout {
+                    visible: root.processPage
                     Layout.fillWidth: true
-                    Label {
+                    spacing: 12
+                    ScrollView {
                         Layout.fillWidth: true
-                        text: picked.key ? (picked.protected ? "Desktop/session process protected" : "Selected: " + picked.name) : "Select a row to manage it"
-                        color: muted
-                        font.pixelSize: root.fontSize("body", 12)
-                        elide: Text.ElideRight
+                        Layout.preferredHeight: 70
+                        clip: true
+                        TextArea {
+                            textFormat: TextEdit.PlainText
+                            text: {
+                                var key = backend.selected;
+                                var snap = backend.snapshot;
+                                return backend.details();
+                            }
+                            readOnly: true
+                            selectByMouse: true
+                            wrapMode: TextEdit.Wrap
+                            color: muted
+                            font.pixelSize: root.fontSize("body", 12)
+                            background: null
+                        }
                     }
-                    PanelButton {
-                        Layout.minimumHeight: 34
-                        visible: backend.page === "apps"
-                        text: "Show window"
-                        enabled: root.canAct
-                        onClicked: backend.windowAction(false)
-                    }
-                    PanelButton {
-                        Layout.minimumHeight: 34
-                        text: backend.page === "apps" ? "Close window" : "Terminate"
-                        enabled: root.canAct
-                        onClicked: backend.page === "apps" ? backend.windowAction(true) : root.ask(false)
-                    }
-                    PanelButton {
-                        visible: backend.page === "processes"
-                        text: "Details"
-                        enabled: !!picked.key && !backend.busy
-                        onClicked: backend.inspect()
-                    }
-                    PanelButton {
-                        visible: root.processPage
-                        text: "More ▾"
-                        enabled: !!picked.key
-                        onClicked: contextMenu.popup()
-                    }
-                    PanelButton {
-                        Layout.minimumHeight: 34
-                        objectName: "forceQuitButton"
-                        text: "Force quit…"
-                        enabled: root.canAct
-                        onClicked: root.ask(true)
+                    RowLayout {
+                        Layout.fillWidth: true
+                        PlainLabel {
+                            Layout.fillWidth: true
+                            text: picked.key ? (picked.protected ? "Desktop/session process protected" : "Selected: " + picked.name) : "Select a row to manage it"
+                            color: muted
+                            font.pixelSize: root.fontSize("body", 12)
+                            elide: Text.ElideRight
+                        }
+                        PanelButton {
+                            Layout.minimumHeight: 34
+                            visible: backend.page === "apps"
+                            text: "Show window"
+                            enabled: root.canAct
+                            onClicked: backend.windowAction(false)
+                        }
+                        PanelButton {
+                            Layout.minimumHeight: 34
+                            text: backend.page === "apps" ? "Close window" : "Terminate"
+                            enabled: root.canAct
+                            onClicked: backend.page === "apps" ? backend.windowAction(true) : root.ask(false)
+                        }
+                        PanelButton {
+                            visible: backend.page === "processes"
+                            text: "Details"
+                            enabled: !!picked.key && !backend.busy
+                            onClicked: backend.inspect()
+                        }
+                        PanelButton {
+                            visible: root.processPage
+                            text: "More ▾"
+                            enabled: !!picked.key
+                            onClicked: contextMenu.popup()
+                        }
+                        PanelButton {
+                            Layout.minimumHeight: 34
+                            objectName: "forceQuitButton"
+                            text: "Force quit…"
+                            enabled: root.canAct
+                            onClicked: root.ask(true)
+                        }
                     }
                 }
-            }
-            Label {
-                Layout.fillWidth: true
-                objectName: "statusLabel"
-                text: backend.status
-                color: backend.paused ? accent : muted
-                font.pixelSize: root.fontSize("body-small", 11)
-                wrapMode: Text.WordWrap
-                maximumLineCount: 3
-                elide: Text.ElideRight
+                PlainLabel {
+                    Layout.fillWidth: true
+                    objectName: "statusLabel"
+                    text: backend.status
+                    color: backend.paused ? accent : muted
+                    font.pixelSize: root.fontSize("body-small", 11)
+                    wrapMode: Text.WordWrap
+                    maximumLineCount: 3
+                    elide: Text.ElideRight
+                }
             }
         }
     }
@@ -1055,18 +1101,22 @@ ApplicationWindow {
     }
     Shortcut {
         sequence: "Ctrl+4"
+        enabled: !root.modalOpen
         onActivated: backend.page = "history"
     }
     Shortcut {
         sequence: "Ctrl+5"
+        enabled: !root.modalOpen
         onActivated: backend.page = "startup"
     }
     Shortcut {
         sequence: "Ctrl+6"
+        enabled: !root.modalOpen
         onActivated: backend.page = "users"
     }
     Shortcut {
         sequence: "Ctrl+7"
+        enabled: !root.modalOpen
         onActivated: backend.page = "services"
     }
     Menu {
@@ -1151,12 +1201,8 @@ ApplicationWindow {
             visible: backend.page === "processes"
             enabled: root.canAct
             onTriggered: {
-                root.actionInfo = backend.prepareTree(false);
-                if (root.actionInfo.title) {
-                    root.wasPaused = backend.paused;
-                    backend.paused = true;
-                    confirm.open();
-                }
+                if (!root.modalOpen)
+                    root.showConfirmation(backend.prepareTree(false));
             }
         }
         MenuItem {
@@ -1177,7 +1223,7 @@ ApplicationWindow {
         ColumnLayout {
             width: parent.width
             spacing: 14
-            Label {
+            PlainLabel {
                 Layout.fillWidth: true
                 text: "Enter an executable and arguments. Use double quotes for paths containing spaces."
                 wrapMode: Text.Wrap
@@ -1194,7 +1240,7 @@ ApplicationWindow {
                     runTask.close();
                 }
             }
-            Label {
+            PlainLabel {
                 text: "Runs as your user. Shell operators are not evaluated."
                 color: muted
                 font.pixelSize: root.fontSize("body-small", 11)
@@ -1209,18 +1255,20 @@ ApplicationWindow {
         height: Math.min(600, root.height - 100)
         modal: true
         title: "Process details / Service journal"
+        onClosed: backend.dismissInspection()
         standardButtons: Dialog.Close
         ScrollView {
             anchors.fill: parent
             clip: true
             TextArea {
+                textFormat: TextEdit.PlainText
                 readOnly: true
                 selectByMouse: true
                 wrapMode: TextEdit.Wrap
                 color: fg
                 font.family: "monospace"
                 font.pixelSize: root.fontSize("body", 12)
-                text: backend.inspection.logs || (backend.inspection.process ? "EXECUTABLE\n" + backend.inspection.executable + "\n\nWORKING DIRECTORY\n" + backend.inspection.cwd + "\n\nSTATUS\n" + backend.inspection.status + "\nCGROUP\n" + backend.inspection.cgroup + "\nOPEN FILES\n" + (backend.inspection.files || []).join("\n") + "\n\nTHREADS / WAIT CHANNELS\n" + (backend.inspection.threads || []).map(function (t) {
+                text: backend.inspection.logs !== undefined ? (backend.inspection.logs || "No journal entries available.") : (backend.inspection.process ? "EXECUTABLE\n" + backend.inspection.executable + "\n\nWORKING DIRECTORY\n" + backend.inspection.cwd + "\n\nSTATUS\n" + backend.inspection.status + "\nCGROUP\n" + backend.inspection.cgroup + "\nOPEN FILES\n" + (backend.inspection.files || []).join("\n") + "\n\nTHREADS / WAIT CHANNELS\n" + (backend.inspection.threads || []).map(function (t) {
                             return t.tid + "  " + t.name + "  " + t.wait;
                         }).join("\n") + "\n\nMEMORY MAPS\n" + backend.inspection.maps + "\n" + backend.inspection.note : backend.inspection.message || "")
             }
@@ -1228,12 +1276,13 @@ ApplicationWindow {
     }
     Connections {
         target: backend
-        function onInspectionChanged() {
+        function onInspectionRequested() {
             inspector.open();
         }
     }
     Dialog {
         id: tuning
+        objectName: "tuningDialog"
         anchors.centerIn: parent
         width: Math.min(560, root.width - 80)
         modal: true
@@ -1242,14 +1291,14 @@ ApplicationWindow {
         ColumnLayout {
             width: parent.width
             spacing: 16
-            Label {
+            PlainLabel {
                 Layout.fillWidth: true
                 text: "Applies to existing threads. Lower nice values mean higher priority; raising priority may be denied by Linux."
                 wrapMode: Text.Wrap
                 color: muted
             }
             RowLayout {
-                Label {
+                PlainLabel {
                     text: "Nice value"
                     color: fg
                 }
@@ -1272,7 +1321,7 @@ ApplicationWindow {
                     }
                 }
             }
-            Label {
+            PlainLabel {
                 Layout.fillWidth: true
                 text: "CPU affinity · comma-separated CPU numbers. Invalid or unavailable CPUs are rejected by the kernel."
                 wrapMode: Text.Wrap
@@ -1307,8 +1356,16 @@ ApplicationWindow {
         width: Math.min(560, root.width - 80)
         modal: true
         title: root.actionInfo.title || "Confirm action"
+        header: PlainLabel {
+            text: confirm.title
+            padding: 12
+            font.bold: true
+            color: fg
+            wrapMode: Text.Wrap
+        }
         standardButtons: Dialog.Ok | Dialog.Cancel
-        contentItem: Label {
+        contentItem: PlainLabel {
+            objectName: "confirmationBody"
             text: root.actionInfo.body || ""
             wrapMode: Text.Wrap
             color: fg

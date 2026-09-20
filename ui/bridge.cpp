@@ -25,11 +25,15 @@ void Rows::replace(const QVariantList &next) {
   if (!rows.isEmpty())
     emit dataChanged(index(0), index(rows.size() - 1));
 }
+bool Bridge::validPage(const QString &page) {
+  static const QStringList pages{"apps",     "processes",      "performance",
+                                 "history",  "startup",        "users",
+                                 "services", "system-services"};
+  return pages.contains(page);
+}
 Bridge::Bridge(QObject *p) : QObject(p), m_rows(this) {
   m_page = m_settings.value("page", "apps").toString();
-  if (!QStringList{"apps", "processes", "performance", "history", "startup",
-                   "users", "services", "system-services"}
-           .contains(m_page))
+  if (!validPage(m_page))
     m_page = "apps";
   m_interval = m_settings.value("interval", 1000).toInt();
   if (!QList<int>{500, 1000, 2000, 5000}.contains(m_interval))
@@ -42,6 +46,8 @@ Bridge::Bridge(QObject *p) : QObject(p), m_rows(this) {
   m_timeout.setSingleShot(true);
   m_timeout.setInterval(15000);
   connect(&m_timeout, &QTimer::timeout, this, [this] {
+    failInspection(
+        "Monitoring worker stopped responding. Restart Task Manager.");
     message("Monitoring worker stopped responding. Restart Task Manager.");
     m_worker.kill();
     finish();
@@ -51,12 +57,15 @@ Bridge::Bridge(QObject *p) : QObject(p), m_rows(this) {
   connect(&m_worker, &QProcess::started, this, &Bridge::refresh);
   connect(&m_worker, &QProcess::errorOccurred, this,
           [this](QProcess::ProcessError) {
+            failInspection("Cannot run monitoring worker: " +
+                           m_worker.errorString());
             message("Cannot run monitoring worker: " + m_worker.errorString());
             finish();
           });
   connect(&m_worker, qOverload<int, QProcess::ExitStatus>(&QProcess::finished),
           this, [this](int, QProcess::ExitStatus) {
             m_timer.stop();
+            failInspection("Monitoring worker exited. Restart Task Manager.");
             message("Monitoring worker exited. Restart Task Manager.");
             finish();
           });
@@ -92,20 +101,24 @@ void Bridge::finish() {
   m_timeout.stop();
   emit busyChanged();
 }
-void Bridge::send(const QVariantMap &v) {
+bool Bridge::send(const QVariantMap &v) {
   if (m_busy || m_worker.state() != QProcess::Running)
-    return;
+    return false;
   m_busy = true;
   emit busyChanged();
   m_timeout.start(v.value("verb") == "dump" ? 65000 : 15000);
   m_worker.write(QJsonDocument::fromVariant(v).toJson(QJsonDocument::Compact) +
                  "\n");
+  return true;
 }
 void Bridge::refresh() {
-  if (!m_paused && m_visible)
-    send({{"op", "sample"}, {"page", m_page}});
+  if (!m_paused && m_visible &&
+      send({{"op", "sample"}, {"page", m_page}, {"reset", m_resetSample}}))
+    m_resetSample = false;
 }
 void Bridge::active(bool v) {
+  if (!v)
+    m_resetSample = true;
   m_visible = v;
   if (v)
     refresh();
@@ -114,6 +127,7 @@ void Bridge::receive() {
   m_buffer += m_worker.readAllStandardOutput();
   if (m_buffer.size() > 32 * 1024 * 1024) {
     m_worker.kill();
+    failInspection("Worker response exceeded limit");
     message("Worker response exceeded limit");
     return;
   }
@@ -125,85 +139,93 @@ void Bridge::receive() {
     auto doc = QJsonDocument::fromJson(line, &error);
     finish();
     if (error.error != QJsonParseError::NoError) {
+      failInspection("Invalid monitoring response");
       message("Invalid monitoring response");
       continue;
     }
-    auto v = doc.toVariant().toMap();
-    auto kind = v.value("kind").toString();
-    if (kind == "snapshot") {
-      if (m_paused)
-        continue;
-      m_snapshot = v;
-      auto sys = v.value("system").toMap();
-      if (!sys.value("continuous").toBool())
-        m_history.clear();
-      auto cpus = sys.value("cpu").toList();
-      auto mem = sys.value("memory").toMap();
-      QVariantMap historyPoint{
-          {"time", m_clock.elapsed()},
-          {"cpu",
-           cpus.isEmpty() ? QVariant() : cpus.first().toMap().value("usage")},
-          {"memory", mem.value("total").toDouble() > 0
-                         ? 100 * mem.value("used").toDouble() /
-                               mem.value("total").toDouble()
-                         : 0}};
-      for (const QString &category : {QString("network"), QString("disks")}) {
-        for (const auto &device : sys.value(category).toList()) {
-          const auto d = device.toMap();
-          const QString prefix = category + ":" + d.value("name").toString();
-          historyPoint[prefix + ":first"] = d.value("first_rate");
-          historyPoint[prefix + ":second"] = d.value("second_rate");
-        }
-      }
-      for (const auto &c : cpus) {
-        auto v = c.toMap();
-        if (v.value("name") != "cpu")
-          historyPoint[v.value("name").toString()] = v.value("usage");
-      }
-      for (const auto &gpu : sys.value("gpus").toList()) {
-        auto g = gpu.toMap();
-        historyPoint["gpu:" + g.value("device").toString()] = g.value("usage");
-      }
-      m_history.append(historyPoint);
-      while (m_history.size() > 1 &&
-             m_clock.elapsed() -
-                     m_history.first().toMap().value("time").toLongLong() >
-                 60000)
-        m_history.removeFirst();
-      if (!m_feedback.isValid() || m_feedback.elapsed() > 6000)
-        message(v.value("desktop_error").isNull()
-                    ? "Live · CPU is % of total capacity"
-                    : "Live metrics · " + v.value("desktop_error").toString());
-      rebuild();
-      emit snapshotChanged();
-      emit selectionChanged();
-    } else if (kind == "inspection") {
-      m_inspection = v.value("data").toMap();
-      emit inspectionChanged();
-    } else if (kind == "action") {
-      m_feedback.start();
-      QStringList out;
-      int failed = 0;
-      for (auto x : v.value("results").toList()) {
-        auto r = x.toMap();
-        if (!r.value("ok").toBool())
-          failed++;
-        out << r.value("message").toString();
-      }
-      message(QString(failed ? "Some actions failed: " : "Action complete: ") +
-              out.join("; "));
-    } else {
-      m_feedback.start();
-      message(v.value("message").toString());
-    }
+    handleResponse(doc.toVariant().toMap());
   }
 }
+void Bridge::handleResponse(const QVariantMap &v) {
+  auto kind = v.value("kind").toString();
+  if (kind == "snapshot") {
+    if (m_paused || !m_visible || m_resetSample) {
+      refresh(); // Discard a pre-pause response and request a fresh baseline.
+      return;
+    }
+    m_snapshot = v;
+    auto sys = v.value("system").toMap();
+    if (!sys.value("continuous").toBool())
+      m_history.clear();
+    auto cpus = sys.value("cpu").toList();
+    auto mem = sys.value("memory").toMap();
+    QVariantMap historyPoint{
+        {"time", m_clock.elapsed()},
+        {"cpu",
+         cpus.isEmpty() ? QVariant() : cpus.first().toMap().value("usage")},
+        {"memory", mem.value("total").toDouble() > 0
+                       ? 100 * mem.value("used").toDouble() /
+                             mem.value("total").toDouble()
+                       : 0}};
+    for (const QString &category : {QString("network"), QString("disks")}) {
+      for (const auto &device : sys.value(category).toList()) {
+        const auto d = device.toMap();
+        const QString prefix = category + ":" + d.value("name").toString();
+        historyPoint[prefix + ":first"] = d.value("first_rate");
+        historyPoint[prefix + ":second"] = d.value("second_rate");
+      }
+    }
+    for (const auto &c : cpus) {
+      auto v = c.toMap();
+      if (v.value("name") != "cpu")
+        historyPoint[v.value("name").toString()] = v.value("usage");
+    }
+    for (const auto &gpu : sys.value("gpus").toList()) {
+      auto g = gpu.toMap();
+      historyPoint["gpu:" + g.value("device").toString()] = g.value("usage");
+    }
+    m_history.append(historyPoint);
+    while (m_history.size() > 1 &&
+           m_clock.elapsed() -
+                   m_history.first().toMap().value("time").toLongLong() >
+               60000)
+      m_history.removeFirst();
+    if (!m_feedback.isValid() || m_feedback.elapsed() > 6000)
+      message(v.value("desktop_error").isNull()
+                  ? "Live · CPU is % of total capacity"
+                  : "Live metrics · " + v.value("desktop_error").toString());
+    rebuild();
+    emit snapshotChanged();
+    emit selectionChanged();
+  } else if (kind == "inspection") {
+    if (m_inspecting && m_inspectionPending) {
+      m_inspection = v.value("data").toMap();
+      emit inspectionChanged();
+    }
+    m_inspectionPending = false;
+  } else if (kind == "action") {
+    m_feedback.start();
+    QStringList out;
+    int failed = 0;
+    for (auto x : v.value("results").toList()) {
+      auto r = x.toMap();
+      if (!r.value("ok").toBool())
+        failed++;
+      out << r.value("message").toString();
+    }
+    message(QString(failed ? "Some actions failed: " : "Action complete: ") +
+            out.join("; "));
+  } else {
+    m_feedback.start();
+    failInspection(v.value("message").toString());
+    message(v.value("message").toString());
+  }
+}
+
 void Bridge::setPage(const QString &s) {
   if (m_page == s)
     return;
-  if (!QStringList{"apps", "processes", "performance", "history", "startup",
-                   "users", "services", "system-services"}
-           .contains(s))
+  if (!validPage(s))
     return;
   m_rows.replace({});
   m_page = s;
@@ -246,6 +268,8 @@ void Bridge::setTree(bool v) {
 }
 void Bridge::setPaused(bool v) {
   m_paused = v;
+  if (v)
+    m_resetSample = true;
   emit preferencesChanged();
   if (!v)
     refresh();
@@ -537,6 +561,11 @@ QVariantMap Bridge::prepareManagement(const QVariantMap &request) {
     r["id"] = selected.value("id");
   }
   if (category == "service" || category == "startup") {
+    if ((category == "service" && m_page != "services" &&
+         m_page != "system-services") ||
+        (category == "startup" &&
+         (m_page != "startup" || !selected.value("editable").toBool())))
+      return {};
     if (selected.isEmpty())
       return {};
     r["key"] = selected.value("key");
@@ -544,7 +573,8 @@ QVariantMap Bridge::prepareManagement(const QVariantMap &request) {
       r["scope"] = selected.value("scope");
   }
   if (category == "session") {
-    if (selected.isEmpty() || selected.value("uid") != m_snapshot.value("uid"))
+    if (m_page != "users" || selected.isEmpty() ||
+        selected.value("uid") != m_snapshot.value("uid"))
       return {};
     r["uid"] = selected.value("uid");
     bool found = false;
@@ -555,6 +585,12 @@ QVariantMap Bridge::prepareManagement(const QVariantMap &request) {
     if (!found)
       return {};
   }
+  if (!QStringList{"restart", "process", "service", "startup", "session",
+                   "history"}
+           .contains(category) ||
+      (category == "history" &&
+       (m_page != "history" || r.value("verb") != "reset")))
+    return {};
   m_pending = r;
   QString verb = r.value("verb").toString();
   QString name = selected.value("name").toString();
@@ -602,9 +638,29 @@ void Bridge::inspect() {
   auto s = selection();
   if (m_busy || m_page != "processes" || s.isEmpty())
     return;
-  m_inspection = {{"message", "Loading process details…"}};
+  beginInspection({{"op", "inspect"}, {"id", s.value("id")}},
+                  "Loading process details…");
+}
+void Bridge::beginInspection(const QVariantMap &request,
+                             const QString &loading) {
+  if (!send(request)) {
+    message("Cannot load details while the monitoring worker is unavailable");
+    return;
+  }
+  m_inspecting = m_inspectionPending = true;
+  m_inspection = {{"message", loading}};
   emit inspectionChanged();
-  send({{"op", "inspect"}, {"id", s.value("id")}});
+  emit inspectionRequested();
+}
+void Bridge::dismissInspection() { m_inspecting = false; }
+void Bridge::failInspection(const QString &error) {
+  if (!m_inspectionPending)
+    return;
+  m_inspectionPending = false;
+  if (m_inspecting) {
+    m_inspection = {{"message", error}};
+    emit inspectionChanged();
+  }
 }
 void Bridge::launch(const QString &command) {
   if (command.size() > 16384) {
@@ -684,17 +740,20 @@ void Bridge::loadLogs() {
   if (m_busy || s.isEmpty() ||
       (m_page != "services" && m_page != "system-services"))
     return;
-  send({{"op", "manage"},
-        {"category", "service"},
-        {"verb", "logs"},
-        {"key", s.value("key")},
-        {"scope", s.value("scope")}});
+  beginInspection({{"op", "manage"},
+                   {"category", "service"},
+                   {"verb", "logs"},
+                   {"key", s.value("key")},
+                   {"scope", s.value("scope")}},
+                  "Loading service journal…");
 }
 
 QVariantMap Bridge::prepareTree(bool force) {
   auto info = prepareAction(force);
-  if (info.isEmpty() || m_page != "processes")
+  if (info.isEmpty() || m_page != "processes") {
+    cancelAction();
     return {};
+  }
   auto s = selection();
   QSet<int> ids{s.value("pid").toInt()};
   auto all = m_snapshot.value("processes").toList();

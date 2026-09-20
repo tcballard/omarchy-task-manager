@@ -58,6 +58,10 @@ with tempfile.TemporaryDirectory(prefix="task-manager-test-") as tmp:
             assert request(dict(op="window",id=row["id"],address="0xdead",close=True))["kind"]=="error"
         time.sleep(.12)
         second=request(dict(op="sample"));assert 0<=second["system"]["cpu"][0]["usage"]<=100
+        reset_sample=request(dict(op="sample",reset=True))
+        assert reset_sample["system"]["continuous"] is False
+        assert reset_sample["system"]["cpu"][0]["usage"] is None
+        assert all(p["cpu"] is None for p in reset_sample["processes"])
         # Atomic theme replacement, as performed by Omarchy.
         old=config.with_name("old");config.rename(old);config.mkdir()
         (config/"colors.toml").write_text('background = "#101010"\nforeground = "invalid"\n')
@@ -102,6 +106,10 @@ with tempfile.TemporaryDirectory(prefix="task-manager-test-") as tmp:
         assert request(dict(op="bad"))["kind"]=="error"
         print("PASS: live metrics; PID mismatch; self protection; theme replacement; disposable termination; protocol errors")
         if server: print("PASS: app attribution and window identity through test compositor")
+        worker.terminate()
+        assert worker.wait(timeout=3) == 0
+        assert json.loads((runtime/"state/omarchy-task-manager/history.json").read_text())["rows"]
+        print("PASS: worker SIGTERM exits and persists history with stdin still open")
     finally:
         if child.poll() is None: child.kill();child.wait()
         worker.stdin.close()

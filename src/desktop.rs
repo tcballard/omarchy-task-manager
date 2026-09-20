@@ -94,25 +94,15 @@ impl Desktop {
                     continue;
                 }
                 if let Ok(s) = fs::read_to_string(e.path()) {
-                    let mut active = false;
-                    let mut fields = HashMap::new();
-                    for l in s.lines() {
-                        if l.starts_with('[') {
-                            active = l == "[Desktop Entry]";
-                        } else if active {
-                            if let Some((k, v)) = l.split_once('=') {
-                                fields.insert(k.trim(), v.trim());
-                            }
-                        }
-                    }
-                    if fields.get("Hidden") == Some(&"true") {
+                    let fields = crate::desktop_entry::parse(&s);
+                    if fields.get("Hidden").is_some_and(|v| v == "true") {
                         continue;
                     }
                     entries.push(DesktopEntry {
                         path: e.path(),
-                        name: fields.get("Name").unwrap_or(&id.as_str()).to_string(),
-                        icon: fields.get("Icon").unwrap_or(&"").to_string(),
-                        class: fields.get("StartupWMClass").unwrap_or(&"").to_string(),
+                        name: fields.get("Name").cloned().unwrap_or_else(|| id.clone()),
+                        icon: fields.get("Icon").cloned().unwrap_or_default(),
+                        class: fields.get("StartupWMClass").cloned().unwrap_or_default(),
                         id,
                     });
                 }
@@ -136,8 +126,13 @@ impl Desktop {
             let p = crate::process::read_one(id.pid).map_err(|_| "Process exited")?;
             crate::process::validate_target(&p, id, unsafe { libc::getuid() }, &protected)?;
         }
-        for id in ids {
-            crate::process::signal(id, false)?;
+        for (id, result) in ids.iter().zip(crate::process::signal_batch(ids, false)) {
+            // A parent may have already reaped a child while the fixed group was closing.
+            if let Err(error) = result {
+                if crate::process::read_one(id.pid).is_ok_and(|p| p.id == *id && p.state != "Z") {
+                    return Err(format!("Application partially closed: {error}"));
+                }
+            }
         }
         let start = std::time::Instant::now();
         while ids
@@ -298,6 +293,9 @@ pub fn theme() -> Value {
         json!({})
     }
 }
+fn panel_extent(request: i64, logical: f64, margin: f64, minimum: i64, maximum: i64) -> i64 {
+    (request.clamp(minimum, maximum) as f64).min((logical - margin).max(1.0)) as i64
+}
 /// Position only this worker's parent window; never changes global compositor config.
 pub fn float_panel(width: i64, height: i64) -> Result<String, String> {
     let pid = unsafe { libc::getppid() };
@@ -325,8 +323,8 @@ pub fn float_panel(width: i64, height: i64) -> Result<String, String> {
         if m["transform"].as_i64().unwrap_or(0) % 2 == 1 {
             std::mem::swap(&mut mw, &mut mh);
         }
-        let w = (width.clamp(850, 2400) as f64).min((mw - 40.0).max(850.0)) as i64;
-        let h = (height.clamp(560, 1600) as f64).min((mh - 60.0).max(560.0)) as i64;
+        let w = panel_extent(width, mw, 40.0, 850, 2400);
+        let h = panel_extent(height, mh, 60.0, 560, 1600);
         let x = m["x"].as_i64().unwrap_or(0) + (mw as i64 - w) / 2;
         let y = m["y"].as_i64().unwrap_or(0) + (mh as i64 - h) / 2;
         for cmd in [
@@ -344,6 +342,12 @@ pub fn float_panel(width: i64, height: i64) -> Result<String, String> {
 #[cfg(test)]
 mod tests {
     use super::*;
+    #[test]
+    fn floating_extent_fits_small_logical_monitors() {
+        assert_eq!(panel_extent(1120, 800.0, 40.0, 850, 2400), 760);
+        assert_eq!(panel_extent(760, 540.0, 60.0, 560, 1600), 480);
+        assert_eq!(panel_extent(9999, 3840.0, 40.0, 850, 2400), 2400);
+    }
     fn p(pid: i32, parent: i32, name: &str) -> Process {
         Process {
             id: Identity { pid, start: 1 },
