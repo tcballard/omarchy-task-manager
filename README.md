@@ -102,3 +102,5 @@ sudo pacman -R omarchy-task-manager
 Preferences live at `$XDG_CONFIG_HOME/tcballard/omarchy-task-manager.conf`; history and dumps live at `$XDG_STATE_HOME/omarchy-task-manager` (defaults: `~/.config` and `~/.local/state`). Package removal preserves both. XDG startup overrides remain in your `autostart` directory; re-enable entries in the app before uninstalling if desired. btop remains installed.
 
 See [FEATURES.md](FEATURES.md), [ARCHITECTURE.md](ARCHITECTURE.md), [CREDITS.md](CREDITS.md), and [VERIFICATION.md](VERIFICATION.md). [SCOPE.md](SCOPE.md) preserves the original, narrower planning document; the current feature matrix supersedes it.
+
+Our design starts with someone who wants to find and close a frozen app without learning Linux internals. See [product direction and acceptance scenarios](PRODUCT.md) for the experience we are working towards, and [contributor instructions](AGENTS.md) for how we keep changes aligned.
