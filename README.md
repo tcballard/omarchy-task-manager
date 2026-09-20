@@ -1,12 +1,14 @@
-# Task Manager
+# Task Manager for Omarchy
 
-<img src="https://raw.githubusercontent.com/tcballard/omarchy-badges/75975e5b5bf75e7ede3764bcd2950046f7abfe2c/badges/v1/omarchy-app.svg" alt="Built for Omarchy — App" height="20">
+<a href="#build-and-run-on-omarchy"><img src="https://raw.githubusercontent.com/tcballard/omarchy-badges/75975e5b5bf75e7ede3764bcd2950046f7abfe2c/badges/v1/omarchy-app.svg" alt="Built for Omarchy — App" height="20"></a>
 
-See what is running, find what is slowing your machine down, and control it from a floating Omarchy panel.
+**See what’s running. Take control.**
 
-A standalone Rust + Qt Quick application with **Applications, Processes, Performance, App history, Startup apps, Users, and Services**. Mouse-friendly, keyboard-accessible, with Omarchy's fontconfig monospace font, live theme colors, and shell typography. No GNOME desktop or btop fork.
+We built Task Manager for Omarchy because moving from Windows shouldn't mean relearning how to find a runaway process or close a frozen app. btop is a capable monitor; we wanted a graphical place to see what's running, understand resource use, and manage processes, startup apps and services. It brings familiar controls into a native, mouse-friendly floating panel, with keyboard support and fonts and colors drawn from Omarchy.
 
-**v0.1.0 preview — implemented and locally tested; live Omarchy acceptance and Arch package validation are still required.** This repository is not yet a tagged release. See [VERIFICATION.md](VERIFICATION.md) for the exact evidence and [FEATURES.md](FEATURES.md) for platform differences.
+**[Build and run on Omarchy →](#build-and-run-on-omarchy)**
+
+**v0.1.0 preview.** Live Omarchy and GPU acceptance remain pending. Read the [verification record](VERIFICATION.md) and [feature coverage and Linux differences](FEATURES.md) before trying it.
 
 ## Build and run on Omarchy
 
