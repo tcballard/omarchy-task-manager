@@ -1,0 +1,32 @@
+# Development package recipe. Generate its source tarball and checksum with scripts/package-source.sh.
+pkgname=omarchy-task-manager
+pkgver=0.1.0
+pkgrel=1
+url='https://github.com/tcballard/omarchy-task-manager'
+pkgdesc='Floating native task manager for Omarchy (preview)'
+arch=('x86_64')
+license=('MIT')
+depends=('qt6-base' 'qt6-declarative' 'qt6-wayland' 'gcc-libs' 'glibc' 'glib2' 'systemd' 'coreutils')
+optdepends=('gdb: live process core dumps' 'nvidia-utils: NVIDIA device telemetry')
+makedepends=('cmake' 'ninja' 'rust' 'cargo')
+checkdepends=('python' 'desktop-file-utils')
+source=("$pkgname-$pkgver.tar.gz")
+sha256sums=('SOURCE_DIGEST')
+
+build() {
+  cmake -S "$srcdir/$pkgname-$pkgver" -B build -G Ninja \
+    -DCMAKE_BUILD_TYPE=Release -DCMAKE_INSTALL_PREFIX=/usr -DCMAKE_INSTALL_LIBDIR=lib
+  cmake --build build
+}
+
+check() {
+  cd "$srcdir/$pkgname-$pkgver"
+  cargo test --locked
+  ctest --test-dir "$srcdir/build" --output-on-failure
+  desktop-file-validate packaging/io.github.tcballard.TaskManager.desktop
+  python tests/protocol.py "$srcdir/build/omarchy-task-manager-core"
+}
+
+package() {
+  DESTDIR="$pkgdir" cmake --install build
+}

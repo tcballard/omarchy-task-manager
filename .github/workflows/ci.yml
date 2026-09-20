@@ -1,0 +1,36 @@
+name: Build and test
+on: [push, pull_request, workflow_dispatch]
+permissions:
+  contents: read
+jobs:
+  linux:
+    timeout-minutes: 20
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@v4
+      - run: |
+          sudo apt-get update
+          sudo apt-get install -y cmake ninja-build qt6-base-dev qt6-declarative-dev qt6-wayland qml6-module-qtquick qml6-module-qtquick-controls qml6-module-qtquick-layouts qml6-module-qtquick-window qml6-module-qtqml-workerscript qml6-module-qtquick-templates qml6-module-qtqml qml6-module-qtqml-models desktop-file-utils
+      - run: rustup toolchain install 1.98.1 --profile minimal --component clippy --component rustfmt
+      - run: cargo fmt --check && cargo clippy --locked --all-targets -- -D warnings && cargo test --locked
+      - run: cmake -S . -B build -G Ninja -DCMAKE_BUILD_TYPE=Release && cmake --build build
+      - run: desktop-file-validate packaging/io.github.tcballard.TaskManager.desktop
+      - run: python3 tests/protocol.py build/omarchy-task-manager-core
+      - run: QT_QPA_PLATFORM=offscreen QT_QUICK_BACKEND=software build/omarchy-task-manager --smoke
+      - run: ctest --test-dir build --output-on-failure
+  arch-package:
+    timeout-minutes: 25
+    runs-on: ubuntu-latest
+    container: archlinux:base-devel
+    steps:
+      - run: pacman -Syu --noconfirm git nodejs cmake ninja rust cargo qt6-base qt6-declarative qt6-wayland python desktop-file-utils
+      - uses: actions/checkout@v4
+      - run: |
+          ./scripts/package-source.sh
+          useradd -m builder
+          chown -R builder:builder "$GITHUB_WORKSPACE"
+          runuser -u builder -- bash -c 'cd "$1/dist" && makepkg --noconfirm' _ "$GITHUB_WORKSPACE"
+      - uses: actions/upload-artifact@v4
+        with:
+          name: arch-development-package
+          path: dist/*.pkg.tar.zst

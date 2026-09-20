@@ -1,0 +1,3 @@
+-- Optional: add to ~/.config/hypr/bindings.lua only after checking for conflicts.
+-- Current Quattro Lua configuration. Does not override existing bindings.
+o.bind("CTRL + SHIFT + ESCAPE", "Task Manager", "omarchy-task-manager")

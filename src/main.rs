@@ -1,0 +1,193 @@
+mod desktop;
+mod gpu;
+mod history;
+mod manage;
+mod metrics;
+mod process;
+use serde_json::{json, Value};
+use std::io::{self, BufRead, Write};
+fn main() {
+    let mut sampler = metrics::Sampler::new();
+    let desktop = desktop::Desktop::new();
+    let mut history = history::History::new();
+    let mut cache = (String::new(), std::time::Instant::now(), json!({}));
+    if std::env::args().any(|a| a == "--once") {
+        println!(
+            "{}",
+            snapshot(&mut sampler, &desktop, &mut history, &mut cache, "apps")
+        );
+        return;
+    }
+    let stdin = io::stdin();
+    let mut stdout = io::BufWriter::new(io::stdout());
+    for line in stdin.lock().lines() {
+        let Ok(line) = line else { break };
+        if line.len() > 1024 * 1024 {
+            break;
+        }
+        let response = match serde_json::from_str::<Value>(&line) {
+            Ok(req) => match req["op"].as_str().unwrap_or("") {
+                "sample" => snapshot(
+                    &mut sampler,
+                    &desktop,
+                    &mut history,
+                    &mut cache,
+                    req["page"].as_str().unwrap_or("apps"),
+                ),
+                "manage" => {
+                    cache.0.clear();
+                    action(&req, &mut history, &desktop)
+                }
+                "inspect" => match serde_json::from_value::<process::Identity>(req["id"].clone()) {
+                    Ok(id) => match manage::inspect(&id) {
+                        Ok(data) => json!({"kind":"inspection","data":data}),
+                        Err(e) => json!({"kind":"error","message":e}),
+                    },
+                    Err(_) => json!({"kind":"error","message":"Invalid process identity"}),
+                },
+                "signal" => {
+                    let targets =
+                        serde_json::from_value::<Vec<process::Identity>>(req["targets"].clone());
+                    match targets {
+                        Ok(ids) if !ids.is_empty() && ids.len() <= 4096 => {
+                            let force = req["force"].as_bool().unwrap_or(false);
+                            let results: Vec<_> = ids
+                                .iter()
+                                .map(|id| match process::signal(id, force) {
+                                    Ok(message) => {
+                                        json!({"pid":id.pid,"ok":true,"message":message})
+                                    }
+                                    Err(message) => {
+                                        json!({"pid":id.pid,"ok":false,"message":message})
+                                    }
+                                })
+                                .collect();
+                            json!({"kind":"action","results":results})
+                        }
+                        _ => json!({"kind":"error","message":"Invalid target list"}),
+                    }
+                }
+                "window" => match serde_json::from_value::<process::Identity>(req["id"].clone()) {
+                    Ok(id) => match desktop::window_action(
+                        req["address"].as_str().unwrap_or(""),
+                        &id,
+                        req["close"].as_bool().unwrap_or(false),
+                    ) {
+                        Ok(message) => {
+                            json!({"kind":"action","results":[{"ok":true,"message":message}]})
+                        }
+                        Err(message) => json!({"kind":"error","message":message}),
+                    },
+                    Err(_) => json!({"kind":"error","message":"Invalid process identity"}),
+                },
+                "float" => match desktop::float_panel(
+                    req["width"].as_i64().unwrap_or(1080),
+                    req["height"].as_i64().unwrap_or(760),
+                ) {
+                    Ok(message) => {
+                        json!({"kind":"action","results":[{"ok":true,"message":message}]})
+                    }
+                    Err(message) => json!({"kind":"error","message":message}),
+                },
+                "quit" => break,
+                _ => json!({"kind":"error","message":"Unknown request"}),
+            },
+            Err(_) => json!({"kind":"error","message":"Malformed request"}),
+        };
+        if writeln!(stdout, "{response}")
+            .and_then(|_| stdout.flush())
+            .is_err()
+        {
+            break;
+        }
+    }
+}
+fn snapshot(
+    sampler: &mut metrics::Sampler,
+    desktop: &desktop::Desktop,
+    history: &mut history::History,
+    cache: &mut (String, std::time::Instant, Value),
+    page: &str,
+) -> Value {
+    let (system, processes) = sampler.sample();
+    history.sample(&processes, system["continuous"].as_bool().unwrap_or(false));
+    let windows = desktop::windows();
+    let apps = desktop.apps(&processes, windows.as_deref().unwrap_or(&[]));
+    if cache.0 != page || cache.1.elapsed().as_secs() >= 5 {
+        cache.2 = match page {
+            "services" => manage::services(true),
+            "system-services" => manage::services(false),
+            "startup" => manage::startup(),
+            "users" => manage::users(&processes),
+            _ => json!({}),
+        };
+        cache.0 = page.into();
+        cache.1 = std::time::Instant::now();
+    }
+    if page == "users" {
+        // Resource totals follow each sample; session enumeration is cached.
+        if let Some(rows) = cache.2["rows"].as_array_mut() {
+            for u in rows {
+                let uid = u["uid"].as_u64().unwrap_or(u64::MAX);
+                let ps: Vec<_> = processes.iter().filter(|p| p.uid as u64 == uid).collect();
+                u["cpu"] = json!(ps.iter().filter_map(|p| p.cpu).sum::<f64>());
+                u["memory"] = json!(ps.iter().map(|p| p.memory).sum::<u64>());
+                u["count"] = json!(ps.len());
+            }
+        }
+    }
+    json!({"kind":"snapshot","system":system,"processes":processes,"apps":apps,"desktop_error":windows.err(),"theme":desktop::theme(),"uid":unsafe{libc::getuid()},"management_page":page,"management":cache.2,"usage":history.view()})
+}
+fn action(req: &Value, history: &mut history::History, desktop: &desktop::Desktop) -> Value {
+    let result: Result<String, String> = match req["category"].as_str().unwrap_or("") {
+        "restart" => serde_json::from_value::<Vec<process::Identity>>(req["targets"].clone())
+            .map_err(|_| "Invalid process list".to_string())
+            .and_then(|ids| desktop.restart(&ids, req["desktop_file"].as_str().unwrap_or(""))),
+        "service" => manage::service_action(req),
+        "startup" => manage::startup_action(
+            req["key"].as_str().unwrap_or(""),
+            req["enabled"].as_bool().unwrap_or(false),
+        ),
+        "session" => manage::session_action(req),
+        "history" if req["verb"] == "reset" => history.reset(),
+        "process" => (|| {
+            let id: process::Identity = serde_json::from_value(req["id"].clone())
+                .map_err(|_| "Invalid process identity")?;
+            match req["verb"].as_str().unwrap_or("") {
+                "dump" => manage::dump(&id),
+                "suspend" => process::send_signal(&id, libc::SIGSTOP),
+                "resume" => process::send_signal(&id, libc::SIGCONT),
+                "nice" => process::tune(
+                    &id,
+                    Some(
+                        req["nice"]
+                            .as_i64()
+                            .and_then(|n| i32::try_from(n).ok())
+                            .ok_or("Invalid priority")?,
+                    ),
+                    None,
+                ),
+                "affinity" => process::tune(
+                    &id,
+                    None,
+                    Some(
+                        serde_json::from_value(req["cpus"].clone())
+                            .map_err(|_| "Invalid CPU list")?,
+                    ),
+                ),
+                _ => Err("Unknown process action".into()),
+            }
+        })(),
+        _ => Err("Unknown management action".into()),
+    };
+    if req["category"] == "service" && req["verb"] == "logs" {
+        return match result {
+            Ok(logs) => json!({"kind":"inspection","data":{"logs":logs}}),
+            Err(message) => json!({"kind":"error","message":message}),
+        };
+    }
+    match result {
+        Ok(message) => json!({"kind":"action","results":[{"ok":true,"message":message}]}),
+        Err(message) => json!({"kind":"error","message":message}),
+    }
+}

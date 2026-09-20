@@ -1,0 +1,11 @@
+[Desktop Entry]
+Type=Application
+Name=Task Manager
+Comment=Monitor applications, processes and system performance
+Exec=omarchy-task-manager
+Icon=io.github.tcballard.TaskManager
+Terminal=false
+Categories=System;Monitor;
+Keywords=CPU;Memory;Processes;Performance;Task Manager;
+StartupNotify=true
+StartupWMClass=io.github.tcballard.TaskManager
