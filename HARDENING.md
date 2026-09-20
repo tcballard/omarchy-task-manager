@@ -1,5 +1,7 @@
 # v0.1.0 hardening review
 
+> Historical record: this work used the planned v0.1.0 label. The first published preview is v0.0.1; we will iterate through v0.0.n before v0.1.0. Existing evidence and hashes describe their original inputs, not the release commit. Release CI supplies fresh build results and asset checksums.
+
 Reviewed 20 September 2026 against `b7edec23deab8f891a1a62a2842570948767985e` (`origin/main`). Scope: every Rust module, Qt bridge and application lifecycle, QML pages, existing tests, build, desktop entry and package recipe. This is a code review and portable hardening pass, not live Omarchy acceptance or a release certification.
 
 The findings below refer to the baseline implementation. Fixes and regression coverage are included in this branch. The previous README opening and social-card edits are separate work and are not included.
