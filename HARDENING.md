@@ -76,6 +76,12 @@ Platform: Ubuntu 24.04 x86_64; Rust 1.98.1; GCC 13.3; Qt 6.4.2. The current seco
 
 First-pass iteration failures were resolved before that gate: a missing QSignalSpy include and a Rust function-pointer cast lint. The first installed-GUI smoke attempt found an empty local GUI build artifact and failed with an exec-format error; recompiling/relinking the unchanged GUI source produced a verified ELF binary and the repeated installed smoke passed. The cause of the empty local artifact was not established. CI must independently build and smoke-test the PR head. No failed or skipped check is counted as a pass.
 
+## Live service integration gate
+
+`tests/live_services.py` runs on the Ubuntu CI VM against real systemd. It creates a unique disposable unit, then drives the production worker protocol through inventory, start, restart (verified by a changed invocation ID), journal retrieval, enable, disable and stop. It checks desktop-service protection, a denied system-service mutation as `nobody`, and fixture cleanup. System scope runs only as root in CI; user scope runs under a dedicated unprivileged account with its own user manager. This tests backend controls and actual service outcomes, not the Omarchy polkit interaction or GUI on the XPS.
+
+The local container has neither a GPU device nor a running systemd manager. These live checks are deliberately separate from portable tests and fail if their required manager is unavailable; they do not silently skip. Physical GPU accuracy, Omarchy session controls and target-specific authorization remain live-target gates.
+
 ## Release decision
 
 This branch improves the preview and makes the remaining risks explicit. It does not authorize or create a v0.1.0 tag. Before release, run the README's live XPS acceptance, GPU comparisons, service/session controls, actual core capture, and Arch install/upgrade/removal. Check CI for the exact PR head. The P2 code findings from the first pass are addressed; portable tests do not establish live desktop reliability. Before calling this release-ready, record the following against the exact candidate:

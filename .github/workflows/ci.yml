@@ -18,6 +18,25 @@ jobs:
       - run: python3 tests/protocol.py build/omarchy-task-manager-core
       - run: QT_QPA_PLATFORM=offscreen QT_QUICK_BACKEND=software build/omarchy-task-manager --smoke
       - run: ctest --test-dir build --output-on-failure
+      - name: Real systemd service controls
+        run: |
+          service_fixture=$(mktemp -d)
+          chmod 755 "$service_fixture"
+          install -m755 build/omarchy-task-manager-core "$service_fixture/core"
+          install -m644 tests/live_services.py "$service_fixture/live_services.py"
+          sudo env GITHUB_ACTIONS=true python3 "$service_fixture/live_services.py" "$service_fixture/core" --scope system
+          service_user=task-manager-ci
+          sudo useradd --create-home "$service_user"
+          service_uid=$(id -u "$service_user")
+          cleanup() {
+            sudo loginctl disable-linger "$service_user" || true
+            sudo loginctl terminate-user "$service_user" || true
+            sudo userdel --remove "$service_user" || true
+          }
+          trap cleanup EXIT
+          sudo loginctl enable-linger "$service_user"
+          sudo systemctl start "user@$service_uid.service"
+          sudo -u "$service_user" env XDG_RUNTIME_DIR="/run/user/$service_uid" DBUS_SESSION_BUS_ADDRESS="unix:path=/run/user/$service_uid/bus" python3 "$service_fixture/live_services.py" "$service_fixture/core" --scope user
       - name: Installed application smoke
         run: |
           DESTDIR="$RUNNER_TEMP/task-manager-stage" cmake --install build --prefix /usr
