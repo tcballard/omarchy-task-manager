@@ -1,5 +1,7 @@
 # Omarchy Task Manager — release scope
 
+> Historical plan. [PRODUCT.md](PRODUCT.md) now defines the intended user, product priorities and acceptance scenarios. Release iterations use v0.0.n until the maintainer is ready for v0.1.0. The original plan below is preserved for context.
+
 20 September 2026. Working descriptive title; public branding remains undecided. This is a build specification, not a claim of implementation or tested compatibility.
 
 ## Decision and release promise
