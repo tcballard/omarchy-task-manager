@@ -37,7 +37,19 @@ makepkg -si
 
 Run `makepkg` as your normal user. After installation, find **Task Manager** in the app launcher or run `omarchy-task-manager`. `scripts/package-source.sh` regenerates the source tarball and recipe after changes. No shortcut, existing config, or btop package is overwritten. Optional `gdb` enables live core dumps; optional `nvidia-utils` supplies NVIDIA device counters.
 
-An optional Ctrl+Shift+Escape example for current Quattro is in `packaging/bindings.lua.example`. Check for conflicts before adding it to your own bindings. Older Hyprland configurations use their own syntax.
+### Keyboard shortcut
+
+Our default shortcut is **Super + Alt + Delete**: open Task Manager, or focus it if already running. It never ends an application directly. Super is the Windows/logo key on most keyboards.
+
+For current Omarchy Quattro, open **Super + K** and check that this combination is not already assigned by your own configuration. Add the following line once to `~/.config/hypr/bindings.lua`:
+
+```lua
+o.bind("SUPER + ALT + DELETE", "Task Manager", "omarchy-task-manager")
+```
+
+Reload Hyprland with `hyprctl reload`, then try the shortcut. The package ships this configuration in `/usr/share/omarchy-task-manager/bindings.lua.example`; source builds include `packaging/bindings.lua.example`. Package installation alone does not activate it or edit your personal bindings. Remove the line and reload to disable it, including when uninstalling the app.
+
+Super + Alt + Delete is unassigned in the upstream Omarchy dev bindings checked at `b9ddccfc377abe0b8fc3ff1ee5b31a86bf202d4a`. Local customisations may differ. Ctrl + Alt + Delete is already assigned to **Close all windows**, so it is not our shortcut. This recipe targets Quattro's Lua configuration; older Hyprland configurations use different syntax.
 
 ## Floating panel
 
