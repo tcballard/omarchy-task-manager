@@ -36,7 +36,7 @@ int main(int argc, char **argv) {
   QGuiApplication app(argc, argv);
   app.setApplicationName("omarchy-task-manager");
   app.setOrganizationName("tcballard");
-  app.setApplicationVersion("0.1.0-dev");
+  app.setApplicationVersion("0.0.1");
   app.setDesktopFileName("io.github.tcballard.TaskManager");
   const QString runtime =
       QStandardPaths::writableLocation(QStandardPaths::RuntimeLocation);

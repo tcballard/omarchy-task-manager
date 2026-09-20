@@ -12,6 +12,7 @@ jobs:
           sudo apt-get update
           sudo apt-get install -y cmake ninja-build qt6-base-dev qt6-declarative-dev qt6-wayland qml6-module-qtquick qml6-module-qtquick-controls qml6-module-qtquick-layouts qml6-module-qtquick-window qml6-module-qtqml-workerscript qml6-module-qtquick-templates qml6-module-qtqml qml6-module-qtqml-models desktop-file-utils
       - run: rustup toolchain install 1.98.1 --profile minimal --component clippy --component rustfmt
+      - run: python3 tests/release_metadata.py
       - run: cargo fmt --check && cargo clippy --locked --all-targets -- -D warnings && cargo test --locked
       - run: cmake -S . -B build -G Ninja -DCMAKE_BUILD_TYPE=Release && cmake --build build
       - run: desktop-file-validate packaging/io.github.tcballard.TaskManager.desktop
@@ -67,7 +68,66 @@ jobs:
           test ! -e /usr/bin/omarchy-task-manager
           test ! -e /usr/lib/omarchy-task-manager/omarchy-task-manager-core
           test ! -e /usr/share/applications/io.github.tcballard.TaskManager.desktop
+      - name: Checksum release assets
+        shell: bash
+        run: |
+          printf 'Commit: %s\nWorkflow run: %s\n' "$GITHUB_SHA" "$GITHUB_RUN_ID" > dist/BUILD-INFO.txt
+          cd dist
+          sha256sum omarchy-task-manager-*.pkg.tar.zst omarchy-task-manager-*.tar.gz PKGBUILD BUILD-INFO.txt > SHA256SUMS
       - uses: actions/upload-artifact@v4
         with:
           name: arch-development-package
-          path: dist/*.pkg.tar.zst
+          if-no-files-found: error
+          path: |
+            dist/*.pkg.tar.zst
+            dist/*.tar.gz
+            dist/PKGBUILD
+            dist/BUILD-INFO.txt
+            dist/SHA256SUMS
+  release:
+    name: Publish v0.0.1 preview
+    needs: [linux, arch-package]
+    if: github.event_name == 'push' && github.ref == 'refs/heads/main' && github.repository == 'tcballard/omarchy-task-manager'
+    runs-on: ubuntu-24.04
+    timeout-minutes: 5
+    permissions:
+      contents: write
+    concurrency:
+      group: publish-v0.0.1
+      cancel-in-progress: false
+    steps:
+      - uses: actions/checkout@v4
+      - name: Check release version
+        id: version
+        run: |
+          version=$(python3 -c 'import tomllib; print(tomllib.load(open("Cargo.toml", "rb"))["package"]["version"])')
+          if [ "$version" = "0.0.1" ]; then
+            echo "publish=true" >> "$GITHUB_OUTPUT"
+          fi
+      - uses: actions/download-artifact@v4
+        if: steps.version.outputs.publish == 'true'
+        with:
+          name: arch-development-package
+          path: release-assets
+      - name: Publish tested assets
+        if: steps.version.outputs.publish == 'true'
+        env:
+          GH_TOKEN: ${{ github.token }}
+          GH_REPO: ${{ github.repository }}
+        run: |
+          set -euo pipefail
+          existing=$(gh api "repos/$GH_REPO/releases" --paginate --jq '.[] | select(.tag_name == "v0.0.1") | .html_url')
+          if [ -n "$existing" ]; then
+            echo "v0.0.1 already exists: $existing"
+            exit 0
+          fi
+          tags=$(gh api "repos/$GH_REPO/git/matching-refs/tags/v0.0.1" --jq '.[] | select(.ref == "refs/tags/v0.0.1") | .object.sha')
+          if [ -n "$tags" ]; then
+            echo "Refusing to reuse an existing v0.0.1 tag without a release"
+            exit 1
+          fi
+          (cd release-assets && sha256sum --check SHA256SUMS)
+          grep -Fx "Commit: $GITHUB_SHA" release-assets/BUILD-INFO.txt
+          gh release create v0.0.1 release-assets/* --target "$GITHUB_SHA" --draft --prerelease --title "v0.0.1 — First preview" --notes-file RELEASE_NOTES.md
+          gh release edit v0.0.1 --draft=false
+

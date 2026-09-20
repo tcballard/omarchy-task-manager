@@ -1,5 +1,7 @@
 # Verification — expanded v0.1.0 preview
 
+> Historical record: this work used the planned v0.1.0 label. The first published preview is v0.0.1; we will iterate through v0.0.n before v0.1.0. Existing evidence and hashes describe their original inputs, not the release commit. Release CI supplies fresh build results and asset checksums.
+
 Date: 20 September 2026. Environment: Ubuntu 24.04 x86_64, GCC 13, Qt 6.4.2, Rust 1.98.1. No live Omarchy session or accessible GPU. Unix sockets are forbidden by this execution environment. Source hashes are in EVIDENCE.sha256; these results cover the expanded archive, not a remote commit or published release.
 
 ## Passed here

@@ -385,7 +385,7 @@ ApplicationWindow {
                     }
                     PlainLabel {
                         objectName: "versionLabel"
-                        text: "v0.1.0 · Preview"
+                        text: "v0.0.1 · Preview"
                         color: muted
                         font.pixelSize: root.fontSize("body-small", 11)
                         Layout.topMargin: 12

@@ -8,7 +8,9 @@ We built Task Manager for Omarchy because moving from Windows shouldn't mean rel
 
 **[Build and run on Omarchy →](#build-and-run-on-omarchy)**
 
-**v0.1.0 preview.** Live Omarchy and GPU acceptance remain pending. Read the [verification record](VERIFICATION.md) and [feature coverage and Linux differences](FEATURES.md) before trying it.
+**v0.0.1 preview.** Live Omarchy and GPU acceptance remain pending. Read the [verification record](VERIFICATION.md) and [feature coverage and Linux differences](FEATURES.md) before trying it.
+
+We will iterate through **v0.0.n** while testing and refining the app, then ship **v0.1.0** when it is ready. Download the [v0.0.1 preview](https://github.com/tcballard/omarchy-task-manager/releases/tag/v0.0.1) or read the [release notes](RELEASE_NOTES.md).
 
 ## Build and run on Omarchy
 
@@ -89,7 +91,7 @@ Actions in automated tests target disposable children and temporary startup file
 5. Compare CPU/RSS/disk/network/GPU over equivalent intervals with btop and driver tools. Test suspend/resume and device/network changes.
 6. Toggle a disposable XDG autostart entry and restore it. Create a disposable user service and test its lifecycle/logs. Confirm denied system-service actions show useful errors.
 7. Test session lock; test sign-out only after saving work. Test optional core dumps only on a disposable process. Verify history survives reopening and reset works.
-8. Build with `makepkg`, run `namcap`, install, upgrade and remove on the target. Preferences/history should remain. Remote CI, real systemd/session actions, Hyprland placement and hardware acceptance must be recorded before tagging.
+8. Build with `makepkg`, run `namcap`, install, upgrade and remove on the target. Preferences/history should remain. Remote CI, real systemd/session actions, Hyprland placement and hardware acceptance must be recorded before shipping v0.1.0. The v0.0.n previews are for testing while this acceptance remains incomplete.
 
 ## Removal
 
