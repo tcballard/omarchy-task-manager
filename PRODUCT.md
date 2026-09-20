@@ -10,6 +10,7 @@ Task Manager for Omarchy is an open-source, native, mouse-friendly way to find a
 
 ## Desired experience
 
+- Ship Super + Alt + Delete as the default shortcut to open or focus Task Manager. The shortcut itself never terminates an app. Preserve existing user bindings and make any conflict visible. The launcher remains available for mouse users.
 - Open to Applications on first launch, with recognisable names and icons, search, and a simple CPU/memory summary. Advanced information must not crowd the primary task.
 - Make End task the obvious application action. Explain its effect in ordinary language. Attempt a normal window close where supported so the application can offer to save work; a request being sent does not mean the application has closed.
 - If the application remains open, make Force quit easy to find. Name the affected application, warn that unsaved work may be lost, and require explicit confirmation. Never escalate automatically because a timer expires.
@@ -29,6 +30,7 @@ Use disposable applications and unsaved test documents. These are target accepta
 
 | Scenario | Successful outcome |
 | --- | --- |
+| Shortcut | Super + Alt + Delete opens the panel or focuses its existing instance without closing any application. User bindings are not silently replaced. |
 | First use | A person unfamiliar with Linux finds their spreadsheet by name/icon and locates End task without opening Processes, reading documentation or using a terminal. |
 | Normal close | A responsive application with unsaved work can show its save prompt. Cancelling that prompt leaves the application running without a later automatic force quit. |
 | Frozen app | After a normal close does not succeed, the user can explicitly confirm Force quit, understands the risk to unsaved work, and sees the result. |

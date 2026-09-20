@@ -21,6 +21,7 @@ install(PROGRAMS ${CMAKE_BINARY_DIR}/omarchy-task-manager-core DESTINATION lib/o
 install(FILES packaging/io.github.tcballard.TaskManager.desktop DESTINATION ${CMAKE_INSTALL_DATADIR}/applications)
 install(FILES packaging/io.github.tcballard.TaskManager.svg DESTINATION ${CMAKE_INSTALL_DATADIR}/icons/hicolor/scalable/apps)
 install(FILES LICENSE DESTINATION ${CMAKE_INSTALL_DATADIR}/licenses/omarchy-task-manager)
+install(FILES packaging/bindings.lua.example DESTINATION ${CMAKE_INSTALL_DATADIR}/omarchy-task-manager)
 include(CTest)
 if(BUILD_TESTING)
     find_package(Qt6 REQUIRED COMPONENTS Test)

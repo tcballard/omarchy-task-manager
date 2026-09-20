@@ -1,3 +1,4 @@
--- Optional: add to ~/.config/hypr/bindings.lua only after checking for conflicts.
--- Current Quattro Lua configuration. Does not override existing bindings.
-o.bind("CTRL + SHIFT + ESCAPE", "Task Manager", "omarchy-task-manager")
+-- Task Manager's default shortcut for Omarchy Quattro.
+-- Add this line to ~/.config/hypr/bindings.lua after checking Super+K for conflicts.
+-- Opens or focuses Task Manager; never closes an application directly.
+o.bind("SUPER + ALT + DELETE", "Task Manager", "omarchy-task-manager")
