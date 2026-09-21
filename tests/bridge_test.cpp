@@ -3,9 +3,46 @@
 #include <QSignalSpy>
 #include <QTemporaryDir>
 #include <QTest>
+#include <memory>
+#include <signal.h>
 class BridgeTest : public QObject {
   Q_OBJECT
 private slots:
+  void shutdownDoesNotPublish_data() {
+    QTest::addColumn<bool>("inFlight");
+    QTest::addColumn<bool>("stopped");
+    QTest::newRow("idle") << false << false;
+    QTest::newRow("sample-in-flight") << true << false;
+    QTest::newRow("stopped-worker") << true << true;
+  }
+  void shutdownDoesNotPublish() {
+    QFETCH(bool, inFlight);
+    QFETCH(bool, stopped);
+    auto bridge = std::make_unique<Bridge>();
+    QTRY_VERIFY_WITH_TIMEOUT(!bridge->snapshot().isEmpty(), 8000);
+    bridge->m_timer.stop();
+    QTRY_VERIFY_WITH_TIMEOUT(!bridge->busy(), 8000);
+    // Stop only the disposable worker owned by this bridge, forcing shutdown
+    // through terminate/kill rather than the normal stdin-EOF exit.
+    if (stopped) {
+      const auto workerPid = bridge->m_worker.processId();
+      QVERIFY(workerPid > 0);
+      QCOMPARE(::kill(workerPid, SIGSTOP), 0);
+    }
+    if (inFlight) {
+      bridge->refresh();
+      QVERIFY(bridge->busy());
+    }
+    QSignalSpy snapshots(bridge.get(), &Bridge::snapshotChanged);
+    QSignalSpy statuses(bridge.get(), &Bridge::statusChanged);
+    QSignalSpy busy(bridge.get(), &Bridge::busyChanged);
+    // Closing the app must not publish late samples or worker-exit errors while
+    // its bridge and UI are being destroyed. Spies outlive the bridge on purpose.
+    bridge.reset();
+    QCOMPARE(snapshots.count(), 0);
+    QCOMPARE(statuses.count(), 0);
+    QCOMPARE(busy.count(), 0);
+  }
   void inspectionErrorsAndDismissal() {
     Bridge bridge;
     QTRY_VERIFY_WITH_TIMEOUT(!bridge.snapshot().isEmpty(), 8000);

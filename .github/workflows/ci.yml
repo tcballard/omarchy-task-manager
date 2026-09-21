@@ -60,6 +60,26 @@ jobs:
           runuser -u builder -- bash -c 'cd "$1/dist" && makepkg --noconfirm' _ "$GITHUB_WORKSPACE"
       - name: Repeat Arch live worker pause/resume regression
         run: runuser -u builder -- ctest --test-dir dist/src/build -R "^bridge$" --repeat until-fail:20 --output-on-failure
+      - name: Sanitize bridge lifetime on Arch
+        shell: bash
+        run: |
+          set -euo pipefail
+          cmake -S . -B build-sanitized -G Ninja -DCMAKE_BUILD_TYPE=Debug -DCMAKE_CXX_FLAGS="-fsanitize=address,undefined -fno-omit-frame-pointer" -DCMAKE_EXE_LINKER_FLAGS="-fsanitize=address,undefined"
+          cp ui/bridge.cpp "$RUNNER_TEMP/fixed-bridge.cpp"
+          trap 'cp "$RUNNER_TEMP/fixed-bridge.cpp" ui/bridge.cpp' EXIT
+          runuser -u builder -- git fetch --depth=1 origin 187a059ebdf6d8198ada2f801b3b794847b2572f
+          runuser -u builder -- git show 187a059ebdf6d8198ada2f801b3b794847b2572f:ui/bridge.cpp > ui/bridge.cpp
+          cmake --build build-sanitized --target bridge-test
+          if timeout 60s build-sanitized/bridge-test -nocrashhandler shutdownDoesNotPublish > "$RUNNER_TEMP/shutdown-before.log" 2>&1; then
+            cat "$RUNNER_TEMP/shutdown-before.log"
+            echo "Shutdown regression did not detect the old implementation"
+            exit 1
+          fi
+          cat "$RUNNER_TEMP/shutdown-before.log"
+          grep -F 'FAIL!  : BridgeTest::shutdownDoesNotPublish' "$RUNNER_TEMP/shutdown-before.log"
+          cp "$RUNNER_TEMP/fixed-bridge.cpp" ui/bridge.cpp
+          cmake --build build-sanitized --target bridge-test
+          ASAN_OPTIONS=detect_leaks=1:halt_on_error=1 UBSAN_OPTIONS=halt_on_error=1 ctest --test-dir build-sanitized -R "^bridge$" --repeat until-fail:20 --output-on-failure
       - name: Inspect recipe and package
         shell: bash
         run: |
