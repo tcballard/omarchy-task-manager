@@ -1,5 +1,7 @@
 #include "bridge.h"
 #include <QGuiApplication>
+#include <QDir>
+#include <QFile>
 #include <QProcess>
 #include <QQmlApplicationEngine>
 #include <QQmlContext>
@@ -10,6 +12,35 @@
 class UiTest : public QObject {
   Q_OBJECT
 private slots:
+  void themeChangesWhileOpen() {
+    const QString theme = qEnvironmentVariable("XDG_STATE_HOME") +
+                          "/omarchy/current/theme";
+    QVERIFY(QDir().mkpath(theme));
+    auto palette = [&](const QByteArray &background) {
+      QFile file(theme + "/colors.toml");
+      if (!file.open(QIODevice::WriteOnly))
+        return false;
+      return file.write("background = \"" + background +
+                        "\"\nforeground = \"#eeeeee\"\naccent = \"#aabbcc\"\n") > 0;
+    };
+    QVERIFY(palette("#101010"));
+    Bridge backend;
+    QQmlApplicationEngine engine;
+    engine.rootContext()->setContextProperty("backend", &backend);
+    engine.load(QUrl("qrc:/ui/Main.qml"));
+    QVERIFY(!engine.rootObjects().isEmpty());
+    auto window = qobject_cast<QQuickWindow *>(engine.rootObjects().first());
+    QVERIFY(window);
+    QTRY_COMPARE_WITH_TIMEOUT(window->property("bg").value<QColor>(),
+                             QColor("#101010"), 8000);
+    QVERIFY(QDir().rename(theme, theme + ".previous"));
+    QVERIFY(QDir().mkpath(theme));
+    QVERIFY(palette("#fafafa"));
+    QTRY_COMPARE_WITH_TIMEOUT(window->property("bg").value<QColor>(),
+                             QColor("#fafafa"), 8000);
+    QVERIFY(QDir(theme).removeRecursively());
+    QVERIFY(QDir(theme + ".previous").removeRecursively());
+  }
   void smallPanelAndMalformedTheme() {
     Bridge backend;
     QQmlApplicationEngine engine;
