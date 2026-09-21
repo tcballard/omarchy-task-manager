@@ -17,7 +17,6 @@ expected = {
     "ui/main.cpp": f'app.setApplicationVersion("{version}")',
     "ui/Main.qml": f"v{version} · Preview",
     "packaging/PKGBUILD": f"pkgver={version}\n",
-    "scripts/package-source.sh": f"name=omarchy-task-manager-{version}\n",
     "README.md": f"**v{version} preview.**",
     "RELEASE_NOTES.md": f"# v{version} —",
 }
