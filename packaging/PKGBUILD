@@ -1,8 +1,8 @@
 # Canonical recipe. scripts/package-source.sh fills the release source checksum.
 # Maintainer: Tom Ballard (tcballard)
 pkgname=omarchy-task-manager
-pkgver=0.0.2
-pkgrel=2
+pkgver=0.0.3
+pkgrel=1
 url='https://github.com/tcballard/omarchy-task-manager'
 pkgdesc='Floating native task manager for Omarchy (preview)'
 arch=('x86_64')

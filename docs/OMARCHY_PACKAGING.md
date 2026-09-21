@@ -2,7 +2,7 @@
 
 The goal is a normal repository install and updates through Omarchy's package
 system. This is packaging preparation, **not an accepted or published Omarchy
-package**. v0.0.2 remains the released build until a separate v0.0.3 release.
+package**. v0.0.3 publishes the source and contribution artifacts for upstream review.
 
 ## Package contract
 
@@ -63,8 +63,8 @@ results before a run completes. Source/handoff reproducibility is checked separa
 
 ## Release and upstream handoff
 
-1. Complete the v0.0.3 version/release PR, reset `pkgrel` to 1 for the new app version,
-   and publish its tested assets. Keep
+1. Publish the reviewed v0.0.3 version/release PR with `pkgrel=1` and its tested
+   assets. Keep
    `prerelease: true`. Include the generated repository archive in `SHA256SUMS`.
 2. Download the source, repository archive and checksums from that actual release;
    verify them. Do not regenerate a different source archive for the same tag.
@@ -103,6 +103,6 @@ The PR's Arch run is the evidence for package execution. The first package lint 
 caught a missing `hicolor-icon-theme` dependency; the recipe now declares it. Other
 namcap warnings include dynamically loaded Qt plugins and subprocess dependencies
 that static linking analysis cannot establish; these dependencies are retained.
-While the app version is still 0.0.2, its baseline transition tests a package revision
-upgrade from 0.0.2-1 to 0.0.2-2. The v0.0.3 release run will exercise the app version
-increase with the same test.
+The preparation PR tested a package revision upgrade from 0.0.2-1 to 0.0.2-2.
+The v0.0.3 release CI gates publication on the app version upgrade from 0.0.2-1
+to 0.0.3-1 with the same preservation checks.
