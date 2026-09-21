@@ -1,4 +1,5 @@
 #include "bridge.h"
+#include "icons.h"
 #include <QGuiApplication>
 #include <QDir>
 #include <QFile>
@@ -9,9 +10,55 @@
 #include <QQuickWindow>
 #include <QTemporaryDir>
 #include <QTest>
+static QQuickItem *visualItem(QQuickItem *root, const QString &name) {
+  if (root->objectName() == name) return root;
+  for (auto child : root->childItems())
+    if (auto found = visualItem(child, name)) return found;
+  return nullptr;
+}
 class UiTest : public QObject {
   Q_OBJECT
 private slots:
+  void iconsWithMissingDesktopTheme() {
+    QTemporaryDir directory;
+    QVERIFY(directory.isValid());
+    const auto paths = QIcon::themeSearchPaths();
+    const auto theme = QIcon::themeName();
+    const auto fallback = QIcon::fallbackThemeName();
+    const QString root = directory.path() + "/hicolor";
+    QVERIFY(QDir().mkpath(root + "/32x32/apps"));
+    QFile index(root + "/index.theme");
+    QVERIFY(index.open(QIODevice::WriteOnly));
+    index.write("[Icon Theme]\nName=Hicolor\nDirectories=32x32/apps\n"
+                "[32x32/apps]\nSize=32\nType=Fixed\nContext=Applications\n");
+    index.close();
+    QPixmap fixture(32, 32);
+    fixture.fill(QColor("#12ab34"));
+    const QString file = root + "/32x32/apps/fixture.png";
+    QVERIFY(fixture.save(file));
+    QIcon::setThemeSearchPaths({directory.path()});
+    QIcon::setThemeName("missing-desktop-theme");
+    QIcon::setFallbackThemeName("");
+    Icons icons;
+    QSize size;
+    auto brand = icons.requestPixmap("omarchy-default", &size, QSize(32, 32)).toImage();
+    QCOMPARE(size, QSize(32, 32));
+    QCOMPARE(brand.pixelColor(1, 1), QColor("#9ece6a"));
+    QCOMPARE(brand.pixelColor(16, 16).alpha(), 0);
+    for (const auto &id : {QString("fixture"), file}) {
+      auto rendered = icons.requestPixmap(id, &size, QSize(32, 32));
+      QCOMPARE(size, QSize(32, 32));
+      QCOMPARE(rendered.toImage().pixelColor(16, 16), QColor("#12ab34"));
+    }
+    for (const auto &id : {QString("missing-app"), directory.path() + "/missing.png"}) {
+      auto rendered = icons.requestPixmap(id, &size, QSize(32, 32)).toImage();
+      QCOMPARE(rendered.pixelColor(0, 0).alpha(), 0);
+      QVERIFY(rendered.pixelColor(4, 16).alpha() > 0);
+    }
+    QIcon::setThemeSearchPaths(paths);
+    QIcon::setThemeName(theme);
+    QIcon::setFallbackThemeName(fallback);
+  }
   void themeChangesWhileOpen() {
     const QString theme = qEnvironmentVariable("XDG_STATE_HOME") +
                           "/omarchy/current/theme";
@@ -27,6 +74,7 @@ private slots:
     Bridge backend;
     QQmlApplicationEngine engine;
     engine.rootContext()->setContextProperty("backend", &backend);
+    engine.addImageProvider("icons", new Icons);
     engine.load(QUrl("qrc:/ui/Main.qml"));
     QVERIFY(!engine.rootObjects().isEmpty());
     auto window = qobject_cast<QQuickWindow *>(engine.rootObjects().first());
@@ -45,6 +93,7 @@ private slots:
     Bridge backend;
     QQmlApplicationEngine engine;
     engine.rootContext()->setContextProperty("backend", &backend);
+    engine.addImageProvider("icons", new Icons);
     engine.load(QUrl("qrc:/ui/Main.qml"));
     QVERIFY(!engine.rootObjects().isEmpty());
     auto window = qobject_cast<QQuickWindow *>(engine.rootObjects().first());
@@ -66,17 +115,16 @@ private slots:
     auto table = window->findChild<QQuickItem *>("processTableViewport");
     QVERIFY(workspace && table);
     QTRY_VERIFY(table->property("contentWidth").toDouble() > table->width());
-    QVERIFY(workspace->property("contentWidth").toDouble() >= 1700);
-    QVERIFY(workspace->property("contentHeight").toDouble() >= 1120);
+    QCOMPARE(workspace->property("contentWidth").toDouble(), 640.0);
+    QVERIFY(workspace->property("contentHeight").toDouble() <= 480);
     const double end =
         table->property("contentWidth").toDouble() - table->width();
     table->setProperty("contentX", end);
     QCOMPARE(table->property("contentX").toDouble(), end);
     auto close = window->findChild<QQuickItem *>("closePanelButton");
-    auto scroll = window->findChild<QObject *>("workspaceHorizontalScroll");
-    QVERIFY(close && scroll);
+    QVERIFY(close);
     QVERIFY(close->mapToScene(QPointF(close->width(), 0)).x() <= 640);
-    QVERIFY(scroll->property("visible").toBool());
+    QVERIFY(!window->findChild<QObject *>("workspaceHorizontalScroll"));
     QCOMPARE(window->width(), 640);
     QCOMPARE(window->height(), 480);
     window->setProperty(
@@ -94,6 +142,59 @@ private slots:
     QTRY_VERIFY(management->property("contentWidth").toDouble() >=
                 management->width());
   }
+  void sidebarAndResizableColumns() {
+    Bridge backend;
+    backend.setPage("apps");
+    QQmlApplicationEngine engine;
+    engine.rootContext()->setContextProperty("backend", &backend);
+    engine.addImageProvider("icons", new Icons);
+    engine.load(QUrl("qrc:/ui/Main.qml"));
+    QVERIFY(!engine.rootObjects().isEmpty());
+    auto window = qobject_cast<QQuickWindow *>(engine.rootObjects().first());
+    QVERIFY(window);
+    window->setProperty("availableScreenWidth", 1400);
+    window->setProperty("availableScreenHeight", 1000);
+    window->resize(1120, 760);
+    window->setProperty("sidebarCollapsed", false);
+    QTRY_VERIFY_WITH_TIMEOUT(!backend.snapshot().isEmpty(), 8000);
+    auto sidebar = window->findChild<QQuickItem *>("sidebar");
+    auto toggle = window->findChild<QQuickItem *>("sidebarToggle");
+    auto table = window->findChild<QQuickItem *>("processTableViewport");
+    QVERIFY(sidebar && toggle && table);
+    QTRY_VERIFY(sidebar->width() > 100);
+    QTest::mouseClick(window, Qt::LeftButton, Qt::NoModifier,
+                     toggle->mapToScene(QPointF(toggle->width()/2, toggle->height()/2)).toPoint());
+    QTRY_COMPARE(sidebar->width(), 56.0);
+    QVERIFY(backend.preference("sidebarCollapsed", false).toBool());
+    QTRY_COMPARE(table->property("contentWidth").toDouble(), table->width());
+    auto header = visualItem(window->contentItem(), "columnHeader_memory");
+    auto handle = visualItem(window->contentItem(), "columnHeader_memory_resize");
+    QVERIFY(header && handle);
+    const double original = header->width();
+    const auto sort = backend.sort();
+    const auto start = handle->mapToScene(QPointF(3, handle->height()/2)).toPoint();
+    QTest::mousePress(window, Qt::LeftButton, Qt::NoModifier, start);
+    QTest::mouseMove(window, start + QPoint(60, 0), 30);
+    QTest::mouseRelease(window, Qt::LeftButton, Qt::NoModifier, start + QPoint(60, 0));
+    QTRY_VERIFY(header->width() >= original + 50);
+    QCOMPARE(backend.sort(), sort); // Dragging a divider must not sort the list.
+    QVERIFY(backend.preference("columnWidths", "").toString().contains("memory"));
+    QVERIFY(QMetaObject::invokeMethod(window, "resetColumns"));
+    QTRY_COMPARE(header->width(), original);
+    for (const QSize size : {QSize(640, 480), QSize(850, 560), QSize(1120, 760)}) {
+      window->resize(size);
+      QTest::qWait(50);
+      auto content = window->findChild<QQuickItem *>("mainContent");
+      auto close = window->findChild<QQuickItem *>("closePanelButton");
+      auto actions = window->findChild<QQuickItem *>("processActions");
+      QVERIFY(content && close && actions);
+      QVERIFY(content->mapToScene(QPointF(content->width(), 0)).x() <= size.width());
+      QVERIFY(close->mapToScene(QPointF(close->width(), 0)).x() <= size.width());
+      QVERIFY(actions->mapToScene(QPointF(0, actions->height())).y() <= size.height());
+      QCOMPARE(table->property("contentWidth").toDouble(), table->width());
+    }
+    backend.savePreference("sidebarCollapsed", false);
+  }
   void keyboardAndConfirmedAction() {
     QProcess child;
     child.start("sleep", {"30"});
@@ -101,6 +202,7 @@ private slots:
     Bridge backend;
     QQmlApplicationEngine engine;
     engine.rootContext()->setContextProperty("backend", &backend);
+    engine.addImageProvider("icons", new Icons);
     engine.load(QUrl("qrc:/ui/Main.qml"));
     QVERIFY(!engine.rootObjects().isEmpty());
     auto window = qobject_cast<QQuickWindow *>(engine.rootObjects().first());

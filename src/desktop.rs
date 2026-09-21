@@ -172,8 +172,17 @@ impl Desktop {
             let members:Vec<_>=groups[&root].iter().filter_map(|pid|by_pid.get(pid).copied()).collect();
             let cpu=if members.iter().all(|p|p.cpu.is_some()){Some(members.iter().filter_map(|p|p.cpu).sum::<f64>())}else{None};
             let ids:Vec<_>=members.iter().map(|p|p.id.clone()).collect();
-            Some(json!({"key":format!("{}:{}",root,p.id.start),"name":e.map(|e|e.name.as_str()).unwrap_or(class),"desktop_file":e.map(|e|e.path.to_string_lossy().to_string()),"icon":e.map(|e|e.icon.as_str()).unwrap_or("application-x-executable"),"cpu":cpu,"memory":members.iter().map(|p|p.memory).sum::<u64>(),"count":ids.len(),"targets":ids,"windows":ws,"protected":members.iter().any(|p|p.protected),"uid":p.uid,"note":"Memory is summed RSS; shared pages may be counted more than once. Grouping follows window processes and their descendants."}))
+            Some(json!({"key":format!("{}:{}",root,p.id.start),"name":e.map(|e|e.name.as_str()).unwrap_or(class),"desktop_file":e.map(|e|e.path.to_string_lossy().to_string()),"icon":application_icon(class, e.map(|e|e.icon.as_str())),"cpu":cpu,"memory":members.iter().map(|p|p.memory).sum::<u64>(),"count":ids.len(),"targets":ids,"windows":ws,"protected":members.iter().any(|p|p.protected),"uid":p.uid,"note":"Memory is summed RSS; shared pages may be counted more than once. Grouping follows window processes and their descendants."}))
         }).collect()
+    }
+}
+fn application_icon<'a>(class: &str, desktop_icon: Option<&'a str>) -> &'a str {
+    if class.starts_with("org.omarchy.") {
+        "omarchy-default"
+    } else {
+        desktop_icon
+            .filter(|icon| !icon.is_empty())
+            .unwrap_or("application-x-executable")
     }
 }
 pub fn group(processes: &[Process], windows: &[Window]) -> HashMap<i32, Vec<i32>> {
@@ -322,9 +331,15 @@ pub fn float_panel(width: i64, height: i64) -> Result<String, String> {
         return Err("Invalid window address".into());
     }
     let selector = format!("address:{}", window.address);
-    let result = hypr(&format!("/dispatch setfloating {selector}"))?;
-    if result.trim() != "ok" {
-        return Err(result);
+    let result = hypr(&format!(
+        "/dispatch hl.dsp.window.float({{ window = \"{selector}\", action = \"set\" }})"
+    ))?;
+    let lua_dispatch = result.trim() == "ok";
+    if !lua_dispatch {
+        let result = hypr(&format!("/dispatch setfloating {selector}"))?;
+        if result.trim() != "ok" {
+            return Err(result);
+        }
     }
     let monitors: Vec<Value> =
         serde_json::from_str(&hypr("j/monitors")?).map_err(|e| e.to_string())?;
@@ -335,14 +350,22 @@ pub fn float_panel(width: i64, height: i64) -> Result<String, String> {
         if m["transform"].as_i64().unwrap_or(0) % 2 == 1 {
             std::mem::swap(&mut mw, &mut mh);
         }
-        let w = panel_extent(width, mw, 40.0, 850, 2400);
-        let h = panel_extent(height, mh, 60.0, 560, 1600);
+        let w = panel_extent(width, mw, 40.0, 640, 2400);
+        let h = panel_extent(height, mh, 60.0, 420, 1600);
         let x = m["x"].as_i64().unwrap_or(0) + (mw as i64 - w) / 2;
         let y = m["y"].as_i64().unwrap_or(0) + (mh as i64 - h) / 2;
-        for cmd in [
-            format!("/dispatch resizewindowpixel exact {w} {h},{selector}"),
-            format!("/dispatch movewindowpixel exact {x} {y},{selector}"),
-        ] {
+        let commands = if lua_dispatch {
+            [
+                format!("/dispatch hl.dsp.window.resize({{ window = \"{selector}\", x = {w}, y = {h} }})"),
+                format!("/dispatch hl.dsp.window.move({{ window = \"{selector}\", x = {x}, y = {y} }})"),
+            ]
+        } else {
+            [
+                format!("/dispatch resizewindowpixel exact {w} {h},{selector}"),
+                format!("/dispatch movewindowpixel exact {x} {y},{selector}"),
+            ]
+        };
+        for cmd in commands {
             let result = hypr(&cmd)?;
             if result.trim() != "ok" {
                 return Err(result);
@@ -354,6 +377,29 @@ pub fn float_panel(width: i64, height: i64) -> Result<String, String> {
 #[cfg(test)]
 mod tests {
     use super::*;
+    #[test]
+    fn omarchy_windows_use_brand_icon_only_for_their_namespace() {
+        for class in [
+            "org.omarchy.agent",
+            "org.omarchy.terminal",
+            "org.omarchy.btop",
+        ] {
+            assert_eq!(application_icon(class, None), "omarchy-default");
+            assert_eq!(
+                application_icon(class, Some("utilities-terminal")),
+                "omarchy-default"
+            );
+        }
+        assert_eq!(application_icon("chromium", Some("chromium")), "chromium");
+        assert_eq!(
+            application_icon("org.omarchyish.app", None),
+            "application-x-executable"
+        );
+        assert_eq!(
+            application_icon("other", Some("")),
+            "application-x-executable"
+        );
+    }
     #[test]
     fn floating_extent_fits_small_logical_monitors() {
         assert_eq!(panel_extent(1120, 800.0, 40.0, 850, 2400), 760);

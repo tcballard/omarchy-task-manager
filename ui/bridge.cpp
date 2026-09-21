@@ -526,13 +526,14 @@ QVariant Bridge::preference(const QString &k, const QVariant &v) const {
   if (k == "width" || k == "height") {
     bool ok = false;
     const int n = value.toInt(&ok);
-    const int minimum = k == "width" ? 850 : 560;
+    const int minimum = k == "width" ? 640 : 420;
     return ok && n >= minimum && n <= 8192 ? QVariant(n) : v;
   }
   return value;
 }
 void Bridge::savePreference(const QString &k, const QVariant &v) {
-  if (k == "width" || k == "height")
+  if (k == "width" || k == "height" || k == "sidebarCollapsed" ||
+      k == "columnWidths")
     m_settings.setValue(k, v);
 }
 

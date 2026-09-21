@@ -1,4 +1,5 @@
 #include "bridge.h"
+#include "icons.h"
 #include <QDir>
 #include <QGuiApplication>
 #include <QIcon>
@@ -12,26 +13,6 @@
 #include <QStandardPaths>
 #include <QTimer>
 #include <cstdio>
-class Icons : public QQuickImageProvider {
-public:
-  Icons() : QQuickImageProvider(QQuickImageProvider::Pixmap) {}
-  QPixmap requestPixmap(const QString &id, QSize *size,
-                        const QSize &requested) override {
-    QSize s = requested.isValid() ? requested : QSize(32, 32);
-    QIcon icon =
-        QIcon::fromTheme(id, QIcon::fromTheme("application-x-executable"));
-    if (id.startsWith('/'))
-      icon = QIcon(id);
-    auto p = icon.pixmap(s);
-    if (p.isNull()) {
-      p = QPixmap(s);
-      p.fill(QColor("#6573a1"));
-    }
-    if (size)
-      *size = p.size();
-    return p;
-  }
-};
 int main(int argc, char **argv) {
   QGuiApplication app(argc, argv);
   app.setApplicationName("omarchy-task-manager");
@@ -78,7 +59,10 @@ int main(int argc, char **argv) {
   auto window = qobject_cast<QQuickWindow *>(engine.rootObjects().first());
   if (window)
     QTimer::singleShot(700, &bridge, [&bridge, window] {
-      bridge.floatPanel(window->width(), window->height());
+      // The compositor can tile the first frame before we request floating.
+      // Use the user's requested size, not that temporary tile's dimensions.
+      bridge.floatPanel(window->property("preferredPanelWidth").toInt(),
+                        window->property("preferredPanelHeight").toInt());
     });
   QObject::connect(&server, &QLocalServer::newConnection, &app, [&] {
     while (auto c = server.nextPendingConnection()) {
