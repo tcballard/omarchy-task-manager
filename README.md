@@ -18,6 +18,16 @@ We will iterate through **v0.0.n** while testing and refining the app, then ship
 
 ## Build and run on Omarchy
 
+For a fresh install without compiling, download the package and checksums from the
+[v0.0.2 release](https://github.com/tcballard/omarchy-task-manager/releases/tag/v0.0.2)
+and follow its install commands. The same package upgrades an existing installation.
+
+**Planned for v0.0.3:** packaging for the official Omarchy repository, so installation
+and updates can use pacman once accepted and published. The
+[packaging handoff](docs/OMARCHY_PACKAGING.md) describes the generated recipe, preview
+update policy and remaining submission checks. The app is not yet available from
+the official repository.
+
 Clone the repository and build as your normal user:
 
 ```bash

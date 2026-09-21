@@ -13,6 +13,7 @@ jobs:
           sudo apt-get install -y cmake ninja-build qt6-base-dev qt6-declarative-dev qt6-wayland libqt6svg6 qml6-module-qtquick qml6-module-qtquick-controls qml6-module-qtquick-layouts qml6-module-qtquick-window qml6-module-qtqml-workerscript qml6-module-qtquick-templates qml6-module-qtqml qml6-module-qtqml-models desktop-file-utils
       - run: rustup toolchain install 1.98.1 --profile minimal --component clippy --component rustfmt
       - run: python3 tests/release_metadata.py
+      - run: python3 tests/packaging.py
       - run: cargo fmt --check && cargo clippy --locked --all-targets -- -D warnings && cargo test --locked
       - run: cmake -S . -B build -G Ninja -DCMAKE_BUILD_TYPE=Release && cmake --build build
       - run: desktop-file-validate packaging/io.github.tcballard.TaskManager.desktop
@@ -48,23 +49,55 @@ jobs:
     runs-on: ubuntu-latest
     container: archlinux:base-devel
     steps:
-      - run: pacman -Syu --noconfirm git nodejs cmake ninja rust cargo qt6-base qt6-declarative qt6-wayland qt6-svg python desktop-file-utils
+      - run: pacman -Syu --noconfirm git nodejs cmake ninja rust cargo qt6-base qt6-declarative qt6-wayland qt6-svg python desktop-file-utils namcap
       - uses: actions/checkout@v4
       - run: |
           ./scripts/package-source.sh
           useradd -m builder
           chown -R builder:builder "$GITHUB_WORKSPACE"
           runuser -u builder -- bash -c 'cd "$1/dist" && makepkg --noconfirm' _ "$GITHUB_WORKSPACE"
-      - name: Install, reinstall, smoke and remove package
+      - name: Inspect recipe and package
         shell: bash
         run: |
+          set -euo pipefail
           packages=(dist/omarchy-task-manager-[0-9]*.pkg.tar.zst)
           test "${#packages[@]}" -eq 1
+          namcap dist/PKGBUILD "${packages[0]}" | tee dist/namcap.txt
+          if grep -E ' E: ' dist/namcap.txt; then exit 1; fi
+          bsdtar -tf "${packages[0]}" > dist/package-files.txt
+          if grep -Ev '^(\.[A-Z]+|usr(/.*)?)/?$' dist/package-files.txt; then exit 1; fi
+          for path in usr/bin/omarchy-task-manager usr/lib/omarchy-task-manager/omarchy-task-manager-core usr/share/applications/io.github.tcballard.TaskManager.desktop usr/share/licenses/omarchy-task-manager/LICENSE; do
+            grep -Fx "$path" dist/package-files.txt
+          done
+      - name: Fresh install, upgrade from v0.0.2, reinstall and remove
+        shell: bash
+        run: |
+          set -euo pipefail
+          packages=(dist/omarchy-task-manager-[0-9]*.pkg.tar.zst)
+          test "${#packages[@]}" -eq 1
+          smoke() {
+            runuser -u builder -- bash -c 'smoke_root=$(mktemp -d); XDG_CONFIG_HOME="$smoke_root/config" XDG_STATE_HOME="$smoke_root/state" XDG_RUNTIME_DIR="$smoke_root" QT_QPA_PLATFORM=offscreen QT_QUICK_BACKEND=software timeout 20s /usr/bin/omarchy-task-manager --smoke'
+          }
+          pacman -U --noconfirm "${packages[0]}"
+          pacman -Qk omarchy-task-manager
+          smoke
+          pacman -R --noconfirm omarchy-task-manager
+          previous=$(mktemp -d)
+          base=https://github.com/tcballard/omarchy-task-manager/releases/download/v0.0.2
+          curl -fL "$base/omarchy-task-manager-0.0.2-1-x86_64.pkg.tar.zst" -o "$previous/omarchy-task-manager-0.0.2-1-x86_64.pkg.tar.zst"
+          curl -fL "$base/SHA256SUMS" -o "$previous/SHA256SUMS"
+          (cd "$previous" && sha256sum --ignore-missing --check SHA256SUMS)
+          pacman -U --noconfirm "$previous/omarchy-task-manager-0.0.2-1-x86_64.pkg.tar.zst"
+          runuser -u builder -- bash -c 'mkdir -p ~/.config/tcballard ~/.local/state/omarchy-task-manager; printf "[General]\npackagingTest=keep\n" > ~/.config/tcballard/omarchy-task-manager.conf; printf "{\"rows\":[],\"since\":1}\n" > ~/.local/state/omarchy-task-manager/history.json'
+          preserved=$(mktemp)
+          sha256sum /home/builder/.config/tcballard/omarchy-task-manager.conf /home/builder/.local/state/omarchy-task-manager/history.json > "$preserved"
           pacman -U --noconfirm "${packages[0]}"
           pacman -Qk omarchy-task-manager
           pacman -U --noconfirm "${packages[0]}"
-          runuser -u builder -- bash -c 'smoke_root=$(mktemp -d); XDG_CONFIG_HOME="$smoke_root/config" XDG_STATE_HOME="$smoke_root/state" XDG_RUNTIME_DIR="$smoke_root" QT_QPA_PLATFORM=offscreen QT_QUICK_BACKEND=software timeout 20s /usr/bin/omarchy-task-manager --smoke'
+          sha256sum --check "$preserved"
+          smoke
           pacman -R --noconfirm omarchy-task-manager
+          sha256sum --check "$preserved"
           test ! -e /usr/bin/omarchy-task-manager
           test ! -e /usr/lib/omarchy-task-manager/omarchy-task-manager-core
           test ! -e /usr/share/applications/io.github.tcballard.TaskManager.desktop
@@ -84,6 +117,8 @@ jobs:
             dist/PKGBUILD
             dist/BUILD-INFO.txt
             dist/SHA256SUMS
+            dist/namcap.txt
+            dist/package-files.txt
   release:
     name: Publish v0.0.2 preview
     needs: [linux, arch-package]
@@ -131,4 +166,3 @@ jobs:
           grep -Fx "Commit: $GITHUB_SHA" release-assets/BUILD-INFO.txt
           gh release create v0.0.2 release-assets/* --target "$GITHUB_SHA" --draft --prerelease --title "v0.0.2 — Desktop polish" --notes-file RELEASE_NOTES.md
           gh release edit v0.0.2 --draft=false
-

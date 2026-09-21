@@ -1,4 +1,4 @@
-# Development package recipe. Generate its source tarball and checksum with scripts/package-source.sh.
+# Canonical recipe. scripts/package-source.sh fills the release source checksum.
 pkgname=omarchy-task-manager
 pkgver=0.0.2
 pkgrel=1
@@ -10,7 +10,7 @@ depends=('qt6-base' 'qt6-declarative' 'qt6-wayland' 'qt6-svg' 'gcc-libs' 'glibc'
 optdepends=('gdb: live process core dumps' 'nvidia-utils: NVIDIA device telemetry')
 makedepends=('cmake' 'ninja' 'rust' 'cargo')
 checkdepends=('python' 'desktop-file-utils')
-source=("$pkgname-$pkgver.tar.gz")
+source=("$url/releases/download/v$pkgver/$pkgname-$pkgver.tar.gz")
 sha256sums=('SOURCE_DIGEST')
 
 build() {

@@ -3,7 +3,8 @@ set -euo pipefail
 root=$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")/.." && pwd)
 dest="$root/dist"
 mkdir -p "$dest"
-name=omarchy-task-manager-0.0.2
+version=$(python3 -c 'import sys, tomllib; print(tomllib.load(open(sys.argv[1], "rb"))["package"]["version"])' "$root/Cargo.toml")
+name="omarchy-task-manager-$version"
 stage=$(mktemp -d)
 trap 'rm -rf -- "$stage"' EXIT
 mkdir "$stage/$name"
@@ -15,3 +16,9 @@ cp "$root/packaging/PKGBUILD" "$dest/PKGBUILD"
 digest=$(sha256sum "$dest/$name.tar.gz" | cut -d ' ' -f1)
 sed -i "s/SOURCE_DIGEST/$digest/" "$dest/PKGBUILD"
 printf 'Source and local PKGBUILD: %s\n' "$dest"
+recipe="$stage/repository/pkgbuilds/omarchy-task-manager"
+mkdir -p "$recipe/.omarchy"
+cp "$dest/PKGBUILD" "$recipe/PKGBUILD"
+cp "$root/packaging/omarchy/package.json" "$recipe/.omarchy/package.json"
+tar --sort=name --mtime='2026-09-20 00:00:00Z' --owner=0 --group=0 --numeric-owner -czf "$dest/$name-omarchy-pkgs.tar.gz" -C "$stage/repository" pkgbuilds
+printf 'Omarchy repository contribution: %s\n' "$dest/$name-omarchy-pkgs.tar.gz"
