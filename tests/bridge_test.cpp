@@ -83,7 +83,8 @@ private slots:
     // replace bridge.snapshot() before the waiting assertion runs.
     QVariantList samples;
     QList<int> historySizes;
-    connect(&bridge, &Bridge::snapshotChanged, &bridge, [&] {
+    QObject sampleObserver; // Disconnect before the captured lists are destroyed.
+    connect(&bridge, &Bridge::snapshotChanged, &sampleObserver, [&] {
       samples.append(bridge.snapshot());
       historySizes.append(bridge.history().size());
     });
