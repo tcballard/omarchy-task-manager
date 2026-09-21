@@ -8,13 +8,13 @@ We built Task Manager for Omarchy because moving from Windows shouldn't mean rel
 
 **[Build and run on Omarchy →](#build-and-run-on-omarchy)**
 
-**v0.0.1 preview.** Live Omarchy and GPU acceptance remain pending. Read the [verification record](VERIFICATION.md) and [feature coverage and Linux differences](FEATURES.md) before trying it.
+**v0.0.2 preview.** Updated after maintainer on-device testing. Full desktop acceptance and GPU accuracy checks remain to be recorded. Read the [verification record](VERIFICATION.md) and [feature coverage and Linux differences](FEATURES.md) before trying it.
 
-We will iterate through **v0.0.n** while testing and refining the app, then ship **v0.1.0** when it is ready. Download the [v0.0.1 preview](https://github.com/tcballard/omarchy-task-manager/releases/tag/v0.0.1) or read the [release notes](RELEASE_NOTES.md).
+We will iterate through **v0.0.n** while testing and refining the app, then ship **v0.1.0** when it is ready. Download the [v0.0.2 preview](https://github.com/tcballard/omarchy-task-manager/releases/tag/v0.0.2) or read the [release notes](RELEASE_NOTES.md).
 
 ![Task Manager on an XPS running Omarchy with the Familiar theme](docs/screenshots/task-manager-familiar.png)
 
-*Development build on the XPS, 21 September 2026. Includes improvements made after the published v0.0.1 package.*
+*Development build on the XPS, 21 September 2026. Shows the desktop improvements included in v0.0.2.*
 
 ## Build and run on Omarchy
 

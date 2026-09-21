@@ -3,7 +3,7 @@ set -euo pipefail
 root=$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")/.." && pwd)
 dest="$root/dist"
 mkdir -p "$dest"
-name=omarchy-task-manager-0.0.1
+name=omarchy-task-manager-0.0.2
 stage=$(mktemp -d)
 trap 'rm -rf -- "$stage"' EXIT
 mkdir "$stage/$name"
