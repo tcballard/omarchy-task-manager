@@ -24,8 +24,11 @@ private slots:
     QTRY_VERIFY_WITH_TIMEOUT(!bridge->busy(), 8000);
     // Stop only the disposable worker owned by this bridge, forcing shutdown
     // through terminate/kill rather than the normal stdin-EOF exit.
-    if (stopped)
-      QCOMPARE(::kill(bridge->m_worker.processId(), SIGSTOP), 0);
+    if (stopped) {
+      const auto workerPid = bridge->m_worker.processId();
+      QVERIFY(workerPid > 0);
+      QCOMPARE(::kill(workerPid, SIGSTOP), 0);
+    }
     if (inFlight) {
       bridge->refresh();
       QVERIFY(bridge->busy());
