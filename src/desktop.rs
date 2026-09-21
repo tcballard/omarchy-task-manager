@@ -235,8 +235,21 @@ pub fn window_action(address: &str, id: &Identity, close: bool) -> Result<String
     }
 }
 pub fn theme() -> Value {
-    let text =
-        fs::read_to_string(config().join("omarchy/current/theme/colors.toml")).unwrap_or_default();
+    let state = std::env::var_os("XDG_STATE_HOME")
+        .map(PathBuf::from)
+        .filter(|p| p.is_absolute())
+        .unwrap_or_else(|| {
+            PathBuf::from(std::env::var_os("HOME").unwrap_or_default()).join(".local/state")
+        });
+    let current = state.join("omarchy/current/theme");
+    // Prefer current state over a stale pre-migration config palette.
+    // Resolve each sample: Omarchy replaces the entire theme directory.
+    let directory = if current.exists() {
+        current
+    } else {
+        config().join("omarchy/current/theme")
+    };
+    let text = fs::read_to_string(directory.join("colors.toml")).unwrap_or_default();
     let mut map = serde_json::Map::new();
     for l in text.lines() {
         if let Some((key, value)) = l.split_once('=') {
@@ -251,8 +264,7 @@ pub fn theme() -> Value {
         }
     }
     if map.len() == 3 {
-        let text = fs::read_to_string(config().join("omarchy/current/theme/shell.toml"))
-            .unwrap_or_default();
+        let text = fs::read_to_string(directory.join("shell.toml")).unwrap_or_default();
         let mut section = String::new();
         let mut tokens = serde_json::Map::new();
         for line in text.lines() {

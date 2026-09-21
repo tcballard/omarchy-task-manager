@@ -43,6 +43,19 @@ with tempfile.TemporaryDirectory(prefix="task-manager-test-") as tmp:
         first=request(dict(op="sample"));assert first["kind"]=="snapshot"
         assert first["system"]["cpu"][0]["usage"] is None
         assert first["theme"]["background"]=="#ffffff"
+        # State themes override stale legacy config, including shell tokens.
+        config = runtime / "state/omarchy/current/theme"; config.mkdir(parents=True)
+        (config/"colors.toml").write_text('background = "#101010"\nforeground = "#eeeeee"\naccent = "#aabbcc"\n')
+        (config/"shell.toml").write_text('[popups]\nbackground = "#202020"\n[font]\nbase-size = 14\n')
+        themed=request(dict(op="sample"))["theme"]
+        assert themed["background"]=="#202020" and themed["accent"]=="#aabbcc"
+        assert themed["shell"]["font.base-size"]=="14"
+        # Replace the theme while this same worker stays running.
+        config.rename(config.with_name("previous")); config.mkdir()
+        (config/"colors.toml").write_text('background = "#fafafa"\nforeground = "#111111"\naccent = "#445566"\n')
+        themed=request(dict(op="sample"))["theme"]
+        assert themed["background"]=="#fafafa" and themed["accent"]=="#445566"
+        assert themed["shell"]=={}, "old shell tokens must not survive replacement"
         row=next(p for p in first["processes"] if p["id"]["pid"]==child.pid)
         if server:
             app=next(a for a in first["apps"] if any(t["pid"]==child.pid for t in a["targets"]))
