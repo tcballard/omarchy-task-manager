@@ -106,7 +106,7 @@ jobs:
         run: |
           printf 'Commit: %s\nWorkflow run: %s\n' "$GITHUB_SHA" "$GITHUB_RUN_ID" > dist/BUILD-INFO.txt
           cd dist
-          sha256sum omarchy-task-manager-*.pkg.tar.zst omarchy-task-manager-*.tar.gz PKGBUILD BUILD-INFO.txt > SHA256SUMS
+          sha256sum omarchy-task-manager-*.pkg.tar.zst omarchy-task-manager-*.tar.gz PKGBUILD BUILD-INFO.txt namcap.txt package-files.txt > SHA256SUMS
       - uses: actions/upload-artifact@v4
         with:
           name: arch-development-package

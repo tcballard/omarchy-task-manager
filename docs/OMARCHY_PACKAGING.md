@@ -63,7 +63,8 @@ results before a run completes. Source/handoff reproducibility is checked separa
 
 ## Release and upstream handoff
 
-1. Complete the v0.0.3 version/release PR and publish its tested assets. Keep
+1. Complete the v0.0.3 version/release PR, reset `pkgrel` to 1 for the new app version,
+   and publish its tested assets. Keep
    `prerelease: true`. Include the generated repository archive in `SHA256SUMS`.
 2. Download the source, repository archive and checksums from that actual release;
    verify them. Do not regenerate a different source archive for the same tag.
@@ -91,3 +92,17 @@ The full official builder, downloading the new release from an empty source cach
 and live Wayland/launcher acceptance remain release/submission checks. The development
 environment used for this change is Ubuntu without Docker/Podman or makepkg; package
 execution is delegated to Arch CI. No production repository has been modified.
+
+Local preparation checks passed on 21 September 2026: release metadata alignment,
+two identical archive generations, source checksum/version/layout checks, shell
+syntax for the recipe, generator and workflow run blocks, and `git diff --check`.
+The official watch helper at the pinned revision accepted our metadata and, with
+an offline release feed, selected a published preview while excluding a draft and
+a nonmatching tag. These checks validate the handoff, not the official package build.
+The PR's Arch run is the evidence for package execution. The first package lint run
+caught a missing `hicolor-icon-theme` dependency; the recipe now declares it. Other
+namcap warnings include dynamically loaded Qt plugins and subprocess dependencies
+that static linking analysis cannot establish; these dependencies are retained.
+While the app version is still 0.0.2, its baseline transition tests a package revision
+upgrade from 0.0.2-1 to 0.0.2-2. The v0.0.3 release run will exercise the app version
+increase with the same test.
