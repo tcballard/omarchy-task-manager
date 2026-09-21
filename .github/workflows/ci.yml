@@ -67,7 +67,8 @@ jobs:
           cmake -S . -B build-sanitized -G Ninja -DCMAKE_BUILD_TYPE=Debug -DCMAKE_CXX_FLAGS="-fsanitize=address,undefined -fno-omit-frame-pointer" -DCMAKE_EXE_LINKER_FLAGS="-fsanitize=address,undefined"
           cp ui/bridge.cpp "$RUNNER_TEMP/fixed-bridge.cpp"
           trap 'cp "$RUNNER_TEMP/fixed-bridge.cpp" ui/bridge.cpp' EXIT
-          git show 187a059ebdf6d8198ada2f801b3b794847b2572f:ui/bridge.cpp > ui/bridge.cpp
+          runuser -u builder -- git fetch --depth=1 origin 187a059ebdf6d8198ada2f801b3b794847b2572f
+          runuser -u builder -- git show 187a059ebdf6d8198ada2f801b3b794847b2572f:ui/bridge.cpp > ui/bridge.cpp
           cmake --build build-sanitized --target bridge-test
           if timeout 60s build-sanitized/bridge-test -nocrashhandler shutdownDoesNotPublish > "$RUNNER_TEMP/shutdown-before.log" 2>&1; then
             cat "$RUNNER_TEMP/shutdown-before.log"
