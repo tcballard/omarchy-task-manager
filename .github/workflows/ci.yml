@@ -20,6 +20,8 @@ jobs:
       - run: python3 tests/protocol.py build/omarchy-task-manager-core
       - run: QT_QPA_PLATFORM=offscreen QT_QUICK_BACKEND=software build/omarchy-task-manager --smoke
       - run: ctest --test-dir build --output-on-failure
+      - name: Repeat live worker pause/resume regression
+        run: ctest --test-dir build -R "^bridge$" --repeat until-fail:20 --output-on-failure
       - name: Real systemd service controls
         run: |
           service_fixture=$(mktemp -d)
@@ -56,6 +58,8 @@ jobs:
           useradd -m builder
           chown -R builder:builder "$GITHUB_WORKSPACE"
           runuser -u builder -- bash -c 'cd "$1/dist" && makepkg --noconfirm' _ "$GITHUB_WORKSPACE"
+      - name: Repeat Arch live worker pause/resume regression
+        run: runuser -u builder -- ctest --test-dir dist/src/build -R "^bridge$" --repeat until-fail:20 --output-on-failure
       - name: Inspect recipe and package
         shell: bash
         run: |
