@@ -17,6 +17,8 @@ with tempfile.TemporaryDirectory(prefix="task-manager-test-") as tmp:
     child = subprocess.Popen(["sleep", "60"])
     alive = True
     requests = []
+    float_window = None
+    lua_supported = True
     def respond():
         while alive:
             try: conn, _ = server.accept()
@@ -25,7 +27,13 @@ with tempfile.TemporaryDirectory(prefix="task-manager-test-") as tmp:
             with conn:
                 request = conn.recv(8192).decode(); requests.append(request)
                 if request == "j/clients":
-                    conn.sendall(json.dumps([dict(pid=child.pid,address="0xabcd",title="Disposable test",**{"class":"Test App"})]).encode())
+                    windows = [dict(pid=child.pid,address="0xabcd",title="Disposable test",**{"class":"Test App"})]
+                    if float_window: windows.append(float_window)
+                    conn.sendall(json.dumps(windows).encode())
+                elif request == "j/monitors":
+                    conn.sendall(json.dumps([dict(focused=True,width=1600,height=1200,scale=2,x=0,y=0)]).encode())
+                elif request.startswith("/dispatch hl.dsp.") and not lua_supported:
+                    conn.sendall(b"Invalid dispatcher")
                 else: conn.sendall(b"ok")
     thread = threading.Thread(target=respond, daemon=True); 
     if server: thread.start()
@@ -69,6 +77,23 @@ with tempfile.TemporaryDirectory(prefix="task-manager-test-") as tmp:
             assert request(dict(op="window",id=row["id"],address="0xabcd",close=True))["results"][0]["ok"]
             assert "/dispatch closewindow address:0xabcd" in requests
             assert request(dict(op="window",id=row["id"],address="0xdead",close=True))["kind"]=="error"
+        if server:
+            # Positioning must only address the worker's parent GUI, with both APIs.
+            assert request(dict(op="float",width=900,height=700))["kind"]=="error"
+            float_window = dict(pid=os.getpid(),address="0xcafe",title="Test panel",**{"class":"io.github.tcballard.TaskManager"})
+            for supported in [True, False]:
+                lua_supported = supported
+                before = len(requests)
+                reply=request(dict(op="float",width=900,height=700))
+                assert reply["kind"] != "error", reply
+                positioning = [r for r in requests[before:] if r.startswith("/dispatch")]
+                assert positioning and all("address:0xcafe" in r for r in positioning)
+                if supported:
+                    assert any("hl.dsp.window.resize" in r and "x = 760, y = 540" in r for r in positioning)
+                else:
+                    assert "/dispatch resizewindowpixel exact 760 540,address:0xcafe" in positioning
+            float_window = None
+            lua_supported = True
         time.sleep(.12)
         second=request(dict(op="sample"));assert 0<=second["system"]["cpu"][0]["usage"]<=100
         reset_sample=request(dict(op="sample",reset=True))

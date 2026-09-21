@@ -10,7 +10,7 @@ jobs:
       - uses: actions/checkout@v4
       - run: |
           sudo apt-get update
-          sudo apt-get install -y cmake ninja-build qt6-base-dev qt6-declarative-dev qt6-wayland qml6-module-qtquick qml6-module-qtquick-controls qml6-module-qtquick-layouts qml6-module-qtquick-window qml6-module-qtqml-workerscript qml6-module-qtquick-templates qml6-module-qtqml qml6-module-qtqml-models desktop-file-utils
+          sudo apt-get install -y cmake ninja-build qt6-base-dev qt6-declarative-dev qt6-wayland libqt6svg6 qml6-module-qtquick qml6-module-qtquick-controls qml6-module-qtquick-layouts qml6-module-qtquick-window qml6-module-qtqml-workerscript qml6-module-qtquick-templates qml6-module-qtqml qml6-module-qtqml-models desktop-file-utils
       - run: rustup toolchain install 1.98.1 --profile minimal --component clippy --component rustfmt
       - run: python3 tests/release_metadata.py
       - run: cargo fmt --check && cargo clippy --locked --all-targets -- -D warnings && cargo test --locked
@@ -48,7 +48,7 @@ jobs:
     runs-on: ubuntu-latest
     container: archlinux:base-devel
     steps:
-      - run: pacman -Syu --noconfirm git nodejs cmake ninja rust cargo qt6-base qt6-declarative qt6-wayland python desktop-file-utils
+      - run: pacman -Syu --noconfirm git nodejs cmake ninja rust cargo qt6-base qt6-declarative qt6-wayland qt6-svg python desktop-file-utils
       - uses: actions/checkout@v4
       - run: |
           ./scripts/package-source.sh

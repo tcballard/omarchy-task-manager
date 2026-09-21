@@ -33,3 +33,5 @@ The community Built for Omarchy App badge is referenced remotely from tcballard/
 - [XDG autostart specification](https://specifications.freedesktop.org/autostart/latest/): per-user precedence and Hidden semantics.
 
 These are references for original implementation, not bundled source or claims of upstream endorsement. External system programs retain their own licenses and are not bundled.
+
+The bundled `ui/omarchy-logo.svg` is the official Omarchy brand mark from https://omarchy.org/brand/omarchy-logo.svg, used for Omarchy built-in application identities (`org.omarchy.*`).

@@ -7,7 +7,7 @@ name=omarchy-task-manager-0.0.1
 stage=$(mktemp -d)
 trap 'rm -rf -- "$stage"' EXIT
 mkdir "$stage/$name"
-for path in Cargo.toml Cargo.lock rust-toolchain.toml CMakeLists.txt LICENSE AGENTS.md PRODUCT.md RELEASE_NOTES.md README.md FEATURES.md SCOPE.md ARCHITECTURE.md CREDITS.md VERIFICATION.md HARDENING.md HARDENING.sha256 .github src ui packaging tests scripts; do
+for path in Cargo.toml Cargo.lock rust-toolchain.toml CMakeLists.txt LICENSE AGENTS.md PRODUCT.md RELEASE_NOTES.md README.md FEATURES.md SCOPE.md ARCHITECTURE.md CREDITS.md VERIFICATION.md HARDENING.md HARDENING.sha256 .github docs src ui packaging tests scripts; do
   cp -a -- "$root/$path" "$stage/$name/"
 done
 tar --sort=name --mtime='2026-09-20 00:00:00Z' --owner=0 --group=0 --numeric-owner -czf "$dest/$name.tar.gz" -C "$stage" "$name"

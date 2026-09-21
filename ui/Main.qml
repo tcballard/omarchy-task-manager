@@ -9,14 +9,38 @@ ApplicationWindow {
     id: root
     property real availableScreenWidth: Math.max(1, Screen.desktopAvailableWidth - 40)
     property real availableScreenHeight: Math.max(1, Screen.desktopAvailableHeight - 60)
-    width: Math.min(availableScreenWidth, Math.max(850, backend.preference("width", 1120)))
-    height: Math.min(availableScreenHeight, Math.max(560, backend.preference("height", 760)))
-    minimumWidth: Math.min(850, availableScreenWidth)
-    minimumHeight: Math.min(560, availableScreenHeight)
+    property int preferredPanelWidth: Math.min(availableScreenWidth, Math.max(640, backend.preference("width", 1120)))
+    property int preferredPanelHeight: Math.min(availableScreenHeight, Math.max(420, backend.preference("height", 760)))
+    width: preferredPanelWidth
+    height: preferredPanelHeight
+    minimumWidth: Math.min(640, availableScreenWidth)
+    minimumHeight: Math.min(420, availableScreenHeight)
     visible: true
     title: "Task Manager"
     flags: Qt.Window | Qt.FramelessWindowHint
+    property bool sidebarCollapsed: backend.preference("sidebarCollapsed", false)
+    property bool compact: width < 900 * layoutScale
     property bool pinned: true
+    property var columnWidths: Theme.savedWidths(backend.preference("columnWidths", "{}"))
+    function columnWidth(column, total) {
+        return Theme.columnWidth(columns, column, total, layoutScale, columnWidths);
+    }
+    function resizeColumn(key, pixels) {
+        var widths = Object.assign({}, columnWidths);
+        widths[key] = Math.max(key === "name" ? 120 : 48, Math.min(1200, pixels / layoutScale));
+        columnWidths = widths;
+    }
+    function saveColumns() {
+        backend.savePreference("columnWidths", JSON.stringify(columnWidths));
+    }
+    function resetColumns() {
+        columnWidths = ({});
+        saveColumns();
+    }
+    function toggleSidebar() {
+        sidebarCollapsed = !sidebarCollapsed;
+        backend.savePreference("sidebarCollapsed", sidebarCollapsed);
+    }
     property bool seenActive: false
     property bool modalOpen: confirm.visible || runTask.visible || inspector.visible || tuning.visible
     property bool processPage: backend.page === "apps" || backend.page === "processes"
@@ -61,46 +85,51 @@ ApplicationWindow {
             anchors.fill: parent
             onPressed: root.startSystemMove()
         }
-        TableViewport {
+        RowLayout {
             anchors.fill: parent
-            anchors.rightMargin: 40
-            minimumContentWidth: 810 * root.layoutScale
-            RowLayout {
-                x: 18
-                width: parent.width - 28
-                height: parent.height
-                spacing: 10
-                PlainLabel {
-                    text: "TASK MANAGER"
-                    font.pixelSize: root.fontSize("body", 12)
-                    font.bold: true
-                    font.letterSpacing: 1
-                    color: accent
-                }
-                PlainLabel {
-                    text: "/ OMARCHY"
-                    font.pixelSize: root.fontSize("body-small", 11)
-                    color: muted
-                }
-                Item {
-                    Layout.fillWidth: true
-                }
-                PanelButton {
-                    text: "Run new task"
-                    onClicked: runTask.open()
-                }
-                PanelButton {
-                    text: "Export"
-                    onClicked: backend.exportSnapshot()
-                }
-                PanelButton {
-                    text: root.pinned ? "Stay open" : "Dismiss on blur"
-                    checkable: true
-                    checked: root.pinned
-                    onClicked: root.pinned = !root.pinned
-                    ToolTip.visible: hovered
-                    ToolTip.text: "Keep the panel open when another window receives focus"
-                }
+            anchors.leftMargin: 10
+            anchors.rightMargin: 48
+            spacing: 8
+            ToolButton {
+                objectName: "sidebarToggle"
+                text: "☰"
+                Accessible.name: root.sidebarCollapsed ? "Expand sidebar" : "Collapse sidebar"
+                ToolTip.visible: hovered
+                ToolTip.text: Accessible.name
+                onClicked: root.toggleSidebar()
+            }
+            PlainLabel {
+                Layout.fillWidth: true
+                Layout.minimumWidth: 0
+                text: "TASK MANAGER"
+                elide: Text.ElideRight
+                font.pixelSize: root.fontSize("body", 12)
+                font.bold: true
+                font.letterSpacing: 1
+                color: accent
+            }
+            PanelButton {
+                visible: root.width >= 720 * root.layoutScale
+                text: "Run new task"
+                onClicked: runTask.open()
+            }
+            PanelButton {
+                visible: !root.compact
+                text: "Export"
+                onClicked: backend.exportSnapshot()
+            }
+            PanelButton {
+                visible: !root.compact
+                text: "Stay open"
+                checkable: true
+                checked: root.pinned
+                onClicked: root.pinned = !root.pinned
+            }
+            ToolButton {
+                objectName: "windowMenuButton"
+                text: "⋮"
+                Accessible.name: "Task Manager options"
+                onClicked: windowMenu.popup()
             }
         }
         ToolButton {
@@ -126,6 +155,22 @@ ApplicationWindow {
         color: "transparent"
         border.width: 2
         border.color: accent
+    }
+    MouseArea {
+        objectName: "windowResizeGrip"
+        z: 110
+        anchors.right: parent.right
+        anchors.bottom: parent.bottom
+        width: 18
+        height: 18
+        cursorShape: Qt.SizeFDiagCursor
+        onPressed: root.startSystemResize(Qt.RightEdge | Qt.BottomEdge)
+        PlainLabel {
+            anchors.centerIn: parent
+            text: "◢"
+            color: root.muted
+            font.pixelSize: 12
+        }
     }
     Shortcut {
         sequence: "Escape"
@@ -164,53 +209,58 @@ ApplicationWindow {
     property bool showOwner: false
     property bool showThreads: false
     property var columns: {
-        var c = [{
+        var c = [
+            {
                 "label": "NAME",
                 "key": "name",
                 "width": -1
-            }, {
+            },
+            {
                 "label": backend.page === "apps" ? "TASKS" : "PID",
                 "key": backend.page === "apps" ? "count" : "pid",
                 "width": 64
-            }, {
+            },
+            {
                 "label": "CPU",
                 "key": "cpu",
                 "width": 72
-            }, {
+            },
+            {
                 "label": "MEMORY",
                 "key": "memory",
                 "width": 102
-            }];
+            }
+        ];
         if (backend.page === "processes") {
             if (showIo)
                 c.push({
-                        "label": "DISK R/W",
-                        "key": "io_rate",
-                        "width": 108
-                    });
+                    "label": "DISK R/W",
+                    "key": "io_rate",
+                    "width": 108
+                });
             if (showGpu)
                 c.push({
-                        "label": "GPU",
-                        "key": "gpu",
-                        "width": 64
-                    });
+                    "label": "GPU",
+                    "key": "gpu",
+                    "width": 64
+                });
             if (showOwner)
                 c.push({
-                        "label": "USER",
-                        "key": "user",
-                        "width": 100
-                    });
+                    "label": "USER",
+                    "key": "user",
+                    "width": 100
+                });
             if (showThreads)
                 c.push({
-                        "label": "THREADS",
-                        "key": "threads",
-                        "width": 70
-                    });
+                    "label": "THREADS",
+                    "key": "threads",
+                    "width": 70
+                });
         }
         return c;
     }
     function nameColumnWidth(total) {
-        return Theme.columnWidth(columns, columns[0], total, layoutScale);
+        return columnWidth(columns[0], total);
     }
     function cell(row, key) {
         var v = row[key];
@@ -273,122 +323,146 @@ ApplicationWindow {
         enabled: !root.modalOpen
         onActivated: backend.page = "performance"
     }
-    ScrollView {
+    Item {
         id: workspaceScroll
         objectName: "workspaceScroll"
         anchors.fill: parent
         clip: true
-        contentWidth: Math.max(availableWidth, 850 * root.layoutScale)
-        contentHeight: Math.max(availableHeight, 560 * root.layoutScale)
-        ScrollBar.horizontal: ScrollBar {
-            objectName: "workspaceHorizontalScroll"
-            policy: workspaceScroll.contentWidth > workspaceScroll.availableWidth ? ScrollBar.AlwaysOn : ScrollBar.AlwaysOff
-        }
-        ScrollBar.vertical: ScrollBar {
-            policy: workspaceScroll.contentHeight > workspaceScroll.availableHeight ? ScrollBar.AlwaysOn : ScrollBar.AlwaysOff
-        }
+        property real contentWidth: width
+        property real contentHeight: height
         RowLayout {
             width: workspaceScroll.contentWidth
             height: workspaceScroll.contentHeight
             spacing: 0
             Rectangle {
                 Layout.fillHeight: true
-                Layout.preferredWidth: 176 * root.layoutScale
+                objectName: "sidebar"
+                Layout.preferredWidth: root.sidebarCollapsed ? 56 : 184 * root.layoutScale
+                Layout.minimumWidth: Layout.preferredWidth
+                Layout.maximumWidth: Layout.preferredWidth
                 color: panel
-                ColumnLayout {
+                ScrollView {
+                    id: navigationScroll
                     anchors.fill: parent
-                    anchors.margins: 16
-                    spacing: 7
-                    PlainLabel {
-                        text: "WORKSPACE"
-                        font.pixelSize: root.fontSize("body-small", 11)
-                        font.bold: true
-                        font.letterSpacing: 1.3
-                        color: muted
-                        Layout.topMargin: 14
-                        Layout.bottomMargin: 10
-                    }
-                    Repeater {
-                        model: [{
-                                "page": "apps",
-                                "name": "Applications",
-                                "mark": "▦"
-                            }, {
-                                "page": "processes",
-                                "name": "Processes",
-                                "mark": "≡"
-                            }, {
-                                "page": "performance",
-                                "name": "Performance",
-                                "mark": "↗"
-                            }, {
-                                "page": "history",
-                                "name": "App history",
-                                "mark": "◷"
-                            }, {
-                                "page": "startup",
-                                "name": "Startup apps",
-                                "mark": "↑"
-                            }, {
-                                "page": "users",
-                                "name": "Users",
-                                "mark": "♙"
-                            }, {
-                                "page": "services",
-                                "name": "Services",
-                                "mark": "⚙"
-                            }]
-                        delegate: Button {
-                            Layout.minimumHeight: 34
-                            required property var modelData
-                            Layout.fillWidth: true
-                            Layout.preferredHeight: 36 * root.layoutScale
-                            text: modelData.mark + "   " + modelData.name
-                            flat: true
-                            checkable: true
-                            checked: backend.page === modelData.page || (modelData.page === "services" && backend.page === "system-services")
-                            contentItem: PlainLabel {
-                                text: parent.text
-                                color: parent.checked ? accent : fg
-                                verticalAlignment: Text.AlignVCenter
-                                leftPadding: 12
-                                font.bold: parent.checked
-                            }
-                            background: Rectangle {
-                                color: parent.checked ? Qt.tint(bg, Qt.rgba(accent.r, accent.g, accent.b, 0.12)) : "transparent"
-                                radius: 0
-                                border.color: parent.activeFocus ? accent : "transparent"
-                            }
-                            onClicked: backend.page = modelData.page
+                    anchors.margins: root.sidebarCollapsed ? 4 : 12
+                    contentWidth: availableWidth
+                    clip: true
+                    ColumnLayout {
+                        width: navigationScroll.availableWidth
+                        height: Math.max(navigationScroll.availableHeight, implicitHeight)
+                        spacing: 7
+                        PlainLabel {
+                            visible: !root.sidebarCollapsed
+                            text: "WORKSPACE"
+                            font.pixelSize: root.fontSize("body-small", 11)
+                            font.bold: true
+                            font.letterSpacing: 1.3
+                            color: muted
+                            Layout.topMargin: 14
+                            Layout.bottomMargin: 10
                         }
-                    }
-                    Item {
-                        Layout.fillHeight: true
-                    }
-                    PlainLabel {
-                        text: "Refresh interval"
-                        font.pixelSize: root.fontSize("body", 12)
-                        color: muted
-                    }
-                    ComboBox {
-                        Layout.preferredHeight: 36 * root.layoutScale
-                        Layout.fillWidth: true
-                        model: ["0.5 seconds", "1 second", "2 seconds", "5 seconds"]
-                        currentIndex: [500, 1000, 2000, 5000].indexOf(backend.interval)
-                        onActivated: backend.interval = [500, 1000, 2000, 5000][currentIndex]
-                    }
-                    PanelButton {
-                        Layout.minimumHeight: 34
-                        Layout.fillWidth: true
-                        text: backend.paused ? "Resume monitoring" : "Pause monitoring"
-                        onClicked: backend.paused = !backend.paused
-                    }
-                    PlainLabel {
-                        objectName: "versionLabel"
-                        text: "v0.0.1 · Preview"
-                        color: muted
-                        font.pixelSize: root.fontSize("body-small", 11)
-                        Layout.topMargin: 12
+                        Repeater {
+                            model: [
+                                {
+                                    "page": "apps",
+                                    "name": "Applications",
+                                    "mark": "▦"
+                                },
+                                {
+                                    "page": "processes",
+                                    "name": "Processes",
+                                    "mark": "≡"
+                                },
+                                {
+                                    "page": "performance",
+                                    "name": "Performance",
+                                    "mark": "↗"
+                                },
+                                {
+                                    "page": "history",
+                                    "name": "App history",
+                                    "mark": "◷"
+                                },
+                                {
+                                    "page": "startup",
+                                    "name": "Startup apps",
+                                    "mark": "↑"
+                                },
+                                {
+                                    "page": "users",
+                                    "name": "Users",
+                                    "mark": "♙"
+                                },
+                                {
+                                    "page": "services",
+                                    "name": "Services",
+                                    "mark": "⚙"
+                                }
+                            ]
+                            delegate: Button {
+                                Layout.minimumHeight: 34
+                                required property var modelData
+                                Layout.fillWidth: true
+                                Layout.preferredHeight: 36 * root.layoutScale
+                                text: root.sidebarCollapsed ? modelData.mark : modelData.mark + "   " + modelData.name
+                                Accessible.name: modelData.name
+                                ToolTip.visible: hovered && root.sidebarCollapsed
+                                ToolTip.text: modelData.name
+                                flat: true
+                                checkable: true
+                                checked: backend.page === modelData.page || (modelData.page === "services" && backend.page === "system-services")
+                                contentItem: PlainLabel {
+                                    text: parent.text
+                                    color: parent.checked ? accent : fg
+                                    verticalAlignment: Text.AlignVCenter
+                                    leftPadding: root.sidebarCollapsed ? 0 : 12
+                                    horizontalAlignment: root.sidebarCollapsed ? Text.AlignHCenter : Text.AlignLeft
+                                    elide: Text.ElideRight
+                                    font.bold: parent.checked
+                                }
+                                background: Rectangle {
+                                    color: parent.checked ? Qt.tint(bg, Qt.rgba(accent.r, accent.g, accent.b, 0.12)) : "transparent"
+                                    radius: 0
+                                    border.color: parent.activeFocus ? accent : "transparent"
+                                }
+                                onClicked: backend.page = modelData.page
+                            }
+                        }
+                        Item {
+                            Layout.fillHeight: true
+                        }
+                        PlainLabel {
+                            visible: !root.sidebarCollapsed
+                            text: "Refresh interval"
+                            font.pixelSize: root.fontSize("body", 12)
+                            color: muted
+                        }
+                        ComboBox {
+                            visible: !root.sidebarCollapsed
+                            Layout.preferredHeight: 36 * root.layoutScale
+                            Layout.fillWidth: true
+                            model: ["0.5 seconds", "1 second", "2 seconds", "5 seconds"]
+                            currentIndex: [500, 1000, 2000, 5000].indexOf(backend.interval)
+                            onActivated: backend.interval = [500, 1000, 2000, 5000][currentIndex]
+                        }
+                        PanelButton {
+                            Layout.minimumHeight: 34
+                            Layout.fillWidth: true
+                            text: root.sidebarCollapsed ? (backend.paused ? "▶" : "Ⅱ") : (backend.paused ? "Resume monitoring" : "Pause monitoring")
+                            implicitWidth: root.sidebarCollapsed ? 40 : 160
+                            Accessible.name: backend.paused ? "Resume monitoring" : "Pause monitoring"
+                            ToolTip.visible: hovered
+                            ToolTip.text: Accessible.name
+                            onClicked: backend.paused = !backend.paused
+                        }
+                        PlainLabel {
+                            visible: !root.sidebarCollapsed
+                            objectName: "versionLabel"
+                            text: "v0.0.1 · Preview"
+                            color: muted
+                            font.pixelSize: root.fontSize("body-small", 11)
+                            Layout.topMargin: 12
+                        }
                     }
                 }
             }
@@ -398,22 +472,33 @@ ApplicationWindow {
                 color: line
             }
             ColumnLayout {
+                id: mainContent
+                objectName: "mainContent"
                 Layout.fillWidth: true
+                Layout.minimumWidth: 0
                 Layout.fillHeight: true
-                Layout.margins: 18
-                spacing: 14
+                Layout.minimumHeight: 0
+                Layout.margins: root.compact ? 12 : 18
+                spacing: root.height < 600 ? 8 : 14
                 RowLayout {
                     Layout.fillWidth: true
                     Layout.minimumHeight: 62
                     ColumnLayout {
+                        Layout.fillWidth: true
+                        Layout.minimumWidth: 0
                         spacing: 4
                         PlainLabel {
+                            Layout.fillWidth: true
+                            elide: Text.ElideRight
                             text: root.pageNames[backend.page] || "Task Manager"
                             font.pixelSize: root.fontSize("heading", 16)
                             font.bold: true
                             color: fg
                         }
                         PlainLabel {
+                            visible: !root.compact
+                            Layout.fillWidth: true
+                            elide: Text.ElideRight
                             text: backend.page === "apps" ? "Running windows and their processes" : backend.page === "processes" ? "Processes, resource use, and controls" : backend.page === "performance" ? "Live resource use · 60-second history" : "Monitor and manage your system"
                             font.pixelSize: root.fontSize("body", 12)
                             color: muted
@@ -441,8 +526,8 @@ ApplicationWindow {
                         Layout.preferredHeight: 36 * root.layoutScale
                         Layout.preferredWidth: 1
                         color: line
-                        Layout.leftMargin: 12
-                        Layout.rightMargin: 12
+                        Layout.leftMargin: 4
+                        Layout.rightMargin: 4
                     }
                     ColumnLayout {
                         Layout.minimumWidth: 90
@@ -476,12 +561,11 @@ ApplicationWindow {
                         Accessible.name: "Search processes and applications"
                     }
                     PanelButton {
-                        visible: backend.page === "processes"
                         text: "Columns"
                         onClicked: columnsMenu.popup()
                     }
                     CheckBox {
-                        visible: backend.page === "processes"
+                        visible: backend.page === "processes" && !root.compact
                         text: "Process tree"
                         checked: backend.tree
                         onToggled: backend.tree = checked
@@ -496,14 +580,16 @@ ApplicationWindow {
                 Rectangle {
                     visible: root.processPage
                     Layout.fillWidth: true
+                    Layout.minimumWidth: 0
                     Layout.fillHeight: true
+                    Layout.minimumHeight: 80
                     color: "transparent"
                     border.color: line
                     radius: 0
                     TableViewport {
                         objectName: "processTableViewport"
                         anchors.fill: parent
-                        minimumContentWidth: Theme.tableWidth(root.columns, root.layoutScale) + 32
+                        minimumContentWidth: Theme.tableWidth(root.columns, root.layoutScale, root.columnWidths) + 32
                         ColumnLayout {
                             anchors.fill: parent
                             spacing: 0
@@ -515,10 +601,15 @@ ApplicationWindow {
                                 spacing: 0
                                 Repeater {
                                     model: root.columns
-                                    delegate: ToolButton {
-                                        Layout.minimumHeight: 34
+                                    delegate: ColumnHeader {
                                         required property var modelData
-                                        width: modelData.width === -1 ? root.nameColumnWidth(parent.width) : modelData.width * root.layoutScale
+                                        objectName: "columnHeader_" + modelData.key
+                                        width: root.columnWidth(modelData, parent.width)
+                                        onResizeRequested: function (pixels) {
+                                            root.resizeColumn(modelData.key, pixels);
+                                        }
+                                        onResizeFinished: root.saveColumns()
+                                        onResetRequested: root.resetColumns()
                                         height: 40 * root.layoutScale
                                         text: modelData.label + (backend.sort === modelData.key ? (backend.descending ? " ↓" : " ↑") : "")
                                         font.pixelSize: root.fontSize("body-small", 11)
@@ -545,8 +636,7 @@ ApplicationWindow {
                                 clip: true
                                 model: root.processPage ? backend.rows : null
                                 boundsBehavior: Flickable.StopAtBounds
-                                ScrollBar.vertical: ScrollBar {
-                                }
+                                ScrollBar.vertical: ScrollBar {}
                                 Keys.onUpPressed: backend.selectOffset(-1)
                                 Keys.onDownPressed: backend.selectOffset(1)
                                 Keys.onMenuPressed: contextMenu.popup()
@@ -616,7 +706,7 @@ ApplicationWindow {
                                             model: root.columns.slice(1)
                                             delegate: PlainLabel {
                                                 required property var modelData
-                                                width: modelData.width * root.layoutScale
+                                                width: root.columnWidth(modelData, parent.width)
                                                 height: parent.height
                                                 verticalAlignment: Text.AlignVCenter
                                                 horizontalAlignment: Text.AlignRight
@@ -998,8 +1088,9 @@ ApplicationWindow {
                     Layout.fillWidth: true
                     spacing: 12
                     ScrollView {
+                        visible: !!picked.key && root.height >= 600
                         Layout.fillWidth: true
-                        Layout.preferredHeight: 70
+                        Layout.preferredHeight: 48
                         clip: true
                         TextArea {
                             textFormat: TextEdit.PlainText
@@ -1016,15 +1107,11 @@ ApplicationWindow {
                             background: null
                         }
                     }
-                    RowLayout {
+                    Flow {
+                        objectName: "processActions"
                         Layout.fillWidth: true
-                        PlainLabel {
-                            Layout.fillWidth: true
-                            text: picked.key ? (picked.protected ? "Desktop/session process protected" : "Selected: " + picked.name) : "Select a row to manage it"
-                            color: muted
-                            font.pixelSize: root.fontSize("body", 12)
-                            elide: Text.ElideRight
-                        }
+                        Layout.preferredHeight: implicitHeight
+                        spacing: 6
                         PanelButton {
                             Layout.minimumHeight: 34
                             visible: backend.page === "apps"
@@ -1066,8 +1153,49 @@ ApplicationWindow {
                     color: backend.paused ? accent : muted
                     font.pixelSize: root.fontSize("body-small", 11)
                     wrapMode: Text.WordWrap
-                    maximumLineCount: 3
+                    maximumLineCount: root.height < 600 ? 1 : 2
                     elide: Text.ElideRight
+                }
+            }
+        }
+    }
+    Menu {
+        id: windowMenu
+        MenuItem {
+            text: "Run new task"
+            onTriggered: runTask.open()
+        }
+        MenuItem {
+            text: "Export snapshot"
+            onTriggered: backend.exportSnapshot()
+        }
+        MenuItem {
+            text: "Stay open"
+            checkable: true
+            checked: root.pinned
+            onTriggered: root.pinned = checked
+        }
+        MenuSeparator {}
+        MenuItem {
+            text: "Collapse sidebar"
+            checkable: true
+            checked: root.sidebarCollapsed
+            onTriggered: root.toggleSidebar()
+        }
+        MenuItem {
+            text: backend.paused ? "Resume monitoring" : "Pause monitoring"
+            onTriggered: backend.paused = !backend.paused
+        }
+        Menu {
+            title: "Refresh interval"
+            Repeater {
+                model: [500, 1000, 2000, 5000]
+                MenuItem {
+                    required property var modelData
+                    text: (modelData / 1000) + " seconds"
+                    checkable: true
+                    checked: backend.interval === modelData
+                    onTriggered: backend.interval = modelData
                 }
             }
         }
@@ -1075,24 +1203,42 @@ ApplicationWindow {
     Menu {
         id: columnsMenu
         MenuItem {
+            text: "Reset column widths"
+            onTriggered: root.resetColumns()
+        }
+        MenuSeparator {
+            visible: backend.page === "processes"
+        }
+        MenuItem {
+            visible: backend.page === "processes"
+            text: "Process tree"
+            checkable: true
+            checked: backend.tree
+            onTriggered: backend.tree = checked
+        }
+        MenuItem {
+            visible: backend.page === "processes"
             text: "Disk read/write"
             checkable: true
             checked: root.showIo
             onTriggered: root.showIo = checked
         }
         MenuItem {
+            visible: backend.page === "processes"
             text: "GPU"
             checkable: true
             checked: root.showGpu
             onTriggered: root.showGpu = checked
         }
         MenuItem {
+            visible: backend.page === "processes"
             text: "User"
             checkable: true
             checked: root.showOwner
             onTriggered: root.showOwner = checked
         }
         MenuItem {
+            visible: backend.page === "processes"
             text: "Threads"
             checkable: true
             checked: root.showThreads
@@ -1126,18 +1272,18 @@ ApplicationWindow {
             visible: backend.page === "apps"
             enabled: root.canAct && !!picked.desktop_file
             onTriggered: root.manage({
-                    "category": "restart",
-                    "verb": "Restart application"
-                })
+                "category": "restart",
+                "verb": "Restart application"
+            })
         }
         MenuItem {
             text: "Create core dump…"
             visible: backend.page === "processes"
             enabled: root.canAct
             onTriggered: root.manage({
-                    "category": "process",
-                    "verb": "dump"
-                })
+                "category": "process",
+                "verb": "dump"
+            })
         }
         MenuItem {
             text: "Details"
@@ -1156,8 +1302,7 @@ ApplicationWindow {
             enabled: !!picked.key
             onTriggered: backend.copyDetails()
         }
-        MenuSeparator {
-        }
+        MenuSeparator {}
         MenuItem {
             text: "Priority / CPU affinity…"
             visible: backend.page === "processes"
@@ -1169,22 +1314,21 @@ ApplicationWindow {
             visible: backend.page === "processes"
             enabled: root.canAct
             onTriggered: root.manage({
-                    "category": "process",
-                    "verb": "nice",
-                    "nice": Math.max(10, picked.nice || 0)
-                })
+                "category": "process",
+                "verb": "nice",
+                "nice": Math.max(10, picked.nice || 0)
+            })
         }
         MenuItem {
             text: picked.state === "T" ? "Resume…" : "Suspend…"
             visible: backend.page === "processes"
             enabled: root.canAct
             onTriggered: root.manage({
-                    "category": "process",
-                    "verb": picked.state === "T" ? "resume" : "suspend"
-                })
+                "category": "process",
+                "verb": picked.state === "T" ? "resume" : "suspend"
+            })
         }
-        MenuSeparator {
-        }
+        MenuSeparator {}
         MenuItem {
             text: "Show window"
             visible: backend.page === "apps"
@@ -1269,8 +1413,8 @@ ApplicationWindow {
                 font.family: "monospace"
                 font.pixelSize: root.fontSize("body", 12)
                 text: backend.inspection.logs !== undefined ? (backend.inspection.logs || "No journal entries available.") : (backend.inspection.process ? "EXECUTABLE\n" + backend.inspection.executable + "\n\nWORKING DIRECTORY\n" + backend.inspection.cwd + "\n\nSTATUS\n" + backend.inspection.status + "\nCGROUP\n" + backend.inspection.cgroup + "\nOPEN FILES\n" + (backend.inspection.files || []).join("\n") + "\n\nTHREADS / WAIT CHANNELS\n" + (backend.inspection.threads || []).map(function (t) {
-                            return t.tid + "  " + t.name + "  " + t.wait;
-                        }).join("\n") + "\n\nMEMORY MAPS\n" + backend.inspection.maps + "\n" + backend.inspection.note : backend.inspection.message || "")
+                        return t.tid + "  " + t.name + "  " + t.wait;
+                    }).join("\n") + "\n\nMEMORY MAPS\n" + backend.inspection.maps + "\n" + backend.inspection.note : backend.inspection.message || "")
             }
         }
     }
@@ -1314,10 +1458,10 @@ ApplicationWindow {
                     onClicked: {
                         tuning.close();
                         root.manage({
-                                "category": "process",
-                                "verb": "nice",
-                                "nice": niceValue.value
-                            });
+                            "category": "process",
+                            "verb": "nice",
+                            "nice": niceValue.value
+                        });
                     }
                 }
             }
@@ -1340,10 +1484,10 @@ ApplicationWindow {
                         var cpus = affinity.text.split(",").map(Number);
                         tuning.close();
                         root.manage({
-                                "category": "process",
-                                "verb": "affinity",
-                                "cpus": cpus
-                            });
+                            "category": "process",
+                            "verb": "affinity",
+                            "cpus": cpus
+                        });
                     }
                 }
             }

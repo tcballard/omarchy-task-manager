@@ -12,12 +12,16 @@ We built Task Manager for Omarchy because moving from Windows shouldn't mean rel
 
 We will iterate through **v0.0.n** while testing and refining the app, then ship **v0.1.0** when it is ready. Download the [v0.0.1 preview](https://github.com/tcballard/omarchy-task-manager/releases/tag/v0.0.1) or read the [release notes](RELEASE_NOTES.md).
 
+![Task Manager on an XPS running Omarchy with the Familiar theme](docs/screenshots/task-manager-familiar.png)
+
+*Development build on the XPS, 21 September 2026. Includes improvements made after the published v0.0.1 package.*
+
 ## Build and run on Omarchy
 
 Clone the repository and build as your normal user:
 
 ```bash
-sudo pacman -S --needed git base-devel cmake ninja rust cargo qt6-base qt6-declarative qt6-wayland python desktop-file-utils
+sudo pacman -S --needed git base-devel cmake ninja rust cargo qt6-base qt6-declarative qt6-wayland qt6-svg python desktop-file-utils
 git clone https://github.com/tcballard/omarchy-task-manager.git
 cd omarchy-task-manager
 cmake -S . -B build -G Ninja -DCMAKE_BUILD_TYPE=Release -DCMAKE_INSTALL_PREFIX=/usr -DCMAKE_INSTALL_LIBDIR=lib
@@ -53,14 +57,14 @@ Super + Alt + Delete is unassigned in the upstream Omarchy dev bindings checked 
 
 ## Floating panel
 
-The app requests floating placement for its own Hyprland window, centers it on the focused monitor, and uses a frameless draggable header. Reopening focuses the existing instance. **Stay open** keeps it visible while you switch applications; turn this off for dismissal when focus leaves the panel. Escape or the close button exits and releases the worker. This is a standalone window, not a bar-anchored Quickshell plugin or fullscreen overlay.
+The app requests floating placement for its own Hyprland window, centers it on the focused monitor, and uses a frameless draggable header. Reopening focuses the existing instance. Use the top-left menu button to collapse the sidebar to an icon rail, and drag the bottom-right grip to resize the panel. Navigation and column widths are saved locally. The header and action controls fit the window; long lists and wide optional columns scroll within their own views. **Stay open** keeps it visible while you switch applications; turn this off for dismissal when focus leaves the panel. Escape or the close button exits and releases the worker. This is a standalone window, not a bar-anchored Quickshell plugin or fullscreen overlay.
 
 Colors are read from `$XDG_STATE_HOME/omarchy/current/theme/colors.toml` (default `~/.local/state/omarchy/current/theme/colors.toml`), with the legacy `~/.config/omarchy/current/theme` used only when the state theme directory is absent; popup colors, font sizes, and supported control fills/widths come from `shell.toml`. Invalid or incomplete base palettes fall back together. Font family is `monospace`, following Omarchy's fontconfig alias. Theme replacement is detected by rereading on active samples. Theme gradients, per-edge borders, spacing overrides, opacity and Hyprland corner-radius overrides are not fully mirrored; the panel currently uses a solid accent border and square corners. Font-family changes may require reopening because Qt/fontconfig caches aliases.
 
 ## Familiar controls
 
 - Ctrl+1 through Ctrl+7: the seven pages. Ctrl+F: search. Ctrl+N: run a new task. F5: refresh. Escape: dismiss a dialog or close the panel.
-- Click a column heading to sort. Use **Columns** for disk I/O, GPU, owner and thread counts. Up/Down selects rows; right-click or **More** exposes process actions.
+- Click a column heading to sort; drag its right divider to resize (or focus the heading and press Shift+Left/Right). Double-click a divider or choose **Columns → Reset column widths** to restore automatic sizing. Use **Columns** for disk I/O, GPU, owner and thread counts. Up/Down selects rows; right-click or **More** exposes process actions.
 - **Close window** requests a normal close for an application's first window, permitting a save prompt. **Terminate** sends SIGTERM. **Force quit** sends SIGKILL. **End process tree** confirms the fixed descendants found in the current snapshot.
 - Application restart terminates the selected group and invokes its known desktop launcher. If it does not exit within three seconds, the app is not relaunched automatically.
 - Priority and affinity apply to existing threads. **Lower priority** uses Linux nice; it does not claim to cap power or reproduce Windows EcoQoS. Raising priority or restoring a lower nice value may require additional permission.
