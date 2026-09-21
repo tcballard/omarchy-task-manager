@@ -4,20 +4,28 @@
 #include <QTemporaryDir>
 #include <QTest>
 #include <memory>
+#include <signal.h>
 class BridgeTest : public QObject {
   Q_OBJECT
 private slots:
   void shutdownDoesNotPublish_data() {
     QTest::addColumn<bool>("inFlight");
-    QTest::newRow("idle") << false;
-    QTest::newRow("sample-in-flight") << true;
+    QTest::addColumn<bool>("stopped");
+    QTest::newRow("idle") << false << false;
+    QTest::newRow("sample-in-flight") << true << false;
+    QTest::newRow("stopped-worker") << true << true;
   }
   void shutdownDoesNotPublish() {
     QFETCH(bool, inFlight);
+    QFETCH(bool, stopped);
     auto bridge = std::make_unique<Bridge>();
     QTRY_VERIFY_WITH_TIMEOUT(!bridge->snapshot().isEmpty(), 8000);
     bridge->m_timer.stop();
     QTRY_VERIFY_WITH_TIMEOUT(!bridge->busy(), 8000);
+    // Stop only the disposable worker owned by this bridge, forcing shutdown
+    // through terminate/kill rather than the normal stdin-EOF exit.
+    if (stopped)
+      QCOMPARE(::kill(bridge->m_worker.processId(), SIGSTOP), 0);
     if (inFlight) {
       bridge->refresh();
       QVERIFY(bridge->busy());
