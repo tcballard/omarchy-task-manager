@@ -82,7 +82,12 @@ Bridge::Bridge(QObject *p) : QObject(p), m_rows(this) {
   m_clock.start();
 }
 Bridge::~Bridge() {
+  // waitForFinished() can emit readyRead/error/finished synchronously. Quiesce
+  // callbacks before waiting, including if QProcess outlives our final wait and
+  // emits from its destructor after the other Bridge members are gone.
   m_timer.stop();
+  m_timeout.stop();
+  m_worker.disconnect(this);
   m_worker.closeWriteChannel();
   if (!m_worker.waitForFinished(600)) {
     m_worker.terminate();

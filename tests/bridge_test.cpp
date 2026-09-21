@@ -3,9 +3,35 @@
 #include <QSignalSpy>
 #include <QTemporaryDir>
 #include <QTest>
+#include <memory>
 class BridgeTest : public QObject {
   Q_OBJECT
 private slots:
+  void shutdownDoesNotPublish_data() {
+    QTest::addColumn<bool>("inFlight");
+    QTest::newRow("idle") << false;
+    QTest::newRow("sample-in-flight") << true;
+  }
+  void shutdownDoesNotPublish() {
+    QFETCH(bool, inFlight);
+    auto bridge = std::make_unique<Bridge>();
+    QTRY_VERIFY_WITH_TIMEOUT(!bridge->snapshot().isEmpty(), 8000);
+    bridge->m_timer.stop();
+    QTRY_VERIFY_WITH_TIMEOUT(!bridge->busy(), 8000);
+    if (inFlight) {
+      bridge->refresh();
+      QVERIFY(bridge->busy());
+    }
+    QSignalSpy snapshots(bridge.get(), &Bridge::snapshotChanged);
+    QSignalSpy statuses(bridge.get(), &Bridge::statusChanged);
+    QSignalSpy busy(bridge.get(), &Bridge::busyChanged);
+    // Closing the app must not publish late samples or worker-exit errors while
+    // its bridge and UI are being destroyed. Spies outlive the bridge on purpose.
+    bridge.reset();
+    QCOMPARE(snapshots.count(), 0);
+    QCOMPARE(statuses.count(), 0);
+    QCOMPARE(busy.count(), 0);
+  }
   void inspectionErrorsAndDismissal() {
     Bridge bridge;
     QTRY_VERIFY_WITH_TIMEOUT(!bridge.snapshot().isEmpty(), 8000);
