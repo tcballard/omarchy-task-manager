@@ -118,7 +118,8 @@ jobs:
           set -euo pipefail
           existing=$(gh api "repos/$GH_REPO/releases" --paginate --jq '.[] | select(.tag_name == "v0.0.2") | .html_url')
           if [ -n "$existing" ]; then
-            echo "v0.0.2 already exists: $existing"
+            echo "Updating v0.0.2 release notes: $existing"
+            gh release edit v0.0.2 --notes-file RELEASE_NOTES.md
             exit 0
           fi
           tags=$(gh api "repos/$GH_REPO/git/matching-refs/tags/v0.0.2" --jq '.[] | select(.ref == "refs/tags/v0.0.2") | .object.sha')
