@@ -26,15 +26,15 @@ void Rows::replace(const QVariantList &next) {
     emit dataChanged(index(0), index(rows.size() - 1));
 }
 bool Bridge::validPage(const QString &page) {
-  static const QStringList pages{"apps",     "processes",      "performance",
+  static const QStringList pages{"summary", "apps",     "processes",      "performance",
                                  "history",  "startup",        "users",
                                  "services", "system-services"};
   return pages.contains(page);
 }
 Bridge::Bridge(QObject *p) : QObject(p), m_rows(this) {
-  m_page = m_settings.value("page", "apps").toString();
+  m_page = m_settings.value("page", "summary").toString();
   if (!validPage(m_page))
-    m_page = "apps";
+    m_page = "summary";
   m_interval = m_settings.value("interval", 1000).toInt();
   if (!QList<int>{500, 1000, 2000, 5000}.contains(m_interval))
     m_interval = 1000;

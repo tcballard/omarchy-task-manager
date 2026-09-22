@@ -89,6 +89,32 @@ private slots:
     QVERIFY(QDir(theme).removeRecursively());
     QVERIFY(QDir(theme + ".previous").removeRecursively());
   }
+  void summaryFindsApplications() {
+    Bridge backend;
+    // Previous tests may have saved another page; explicitly exercise Summary.
+    backend.setPage("summary");
+    QQmlApplicationEngine engine;
+    engine.rootContext()->setContextProperty("backend", &backend);
+    engine.addImageProvider("icons", new Icons);
+    engine.load(QUrl("qrc:/ui/Main.qml"));
+    QVERIFY(!engine.rootObjects().isEmpty());
+    auto window = qobject_cast<QQuickWindow *>(engine.rootObjects().first());
+    QVERIFY(window);
+    QTRY_VERIFY_WITH_TIMEOUT(!backend.snapshot().isEmpty(), 8000);
+    auto summary = window->findChild<QQuickItem *>("summaryView");
+    auto all = window->findChild<QQuickItem *>("summaryViewAllButton");
+    QVERIFY(summary && all);
+    QVERIFY(summary->isVisible());
+    QTest::mouseClick(window, Qt::LeftButton, Qt::NoModifier,
+                      all->mapToScene(QPointF(all->width() / 2,
+                                               all->height() / 2)).toPoint());
+    QCOMPARE(backend.page(), QString("apps"));
+    auto search = window->findChild<QQuickItem *>("searchField");
+    QVERIFY(search);
+    QTRY_VERIFY(search->hasActiveFocus());
+    QTest::keyClick(window, Qt::Key_0, Qt::ControlModifier);
+    QCOMPARE(backend.page(), QString("summary"));
+  }
   void smallPanelAndMalformedTheme() {
     Bridge backend;
     QQmlApplicationEngine engine;

@@ -1,9 +1,10 @@
 # Task Manager: Windows-to-Omarchy feature map
 
-Status: v0.0.3 preview, 21 September 2026. “Implemented” means executable code and UI exist; live desktop/hardware verification remains separate.
+Status: v0.0.4 preview; Summary is implemented on the current development branch as of 22 September 2026, pending live desktop acceptance. “Implemented” means executable code and UI exist; live desktop/hardware verification remains separate.
 
 | Familiar Windows capability | Omarchy implementation | Boundary |
 |---|---|---|
+| Summary | CPU/memory history and top running applications with a route to Applications | No automatic diagnosis; displayed values depend on available samples |
 | Processes/app groups | Hyprland windows + descendant groups, full readable process list | Shared helpers, Flatpak/Wine/cgroups not fully attributed |
 | End task / end process tree | Confirmed SIGTERM/SIGKILL with fixed PID/start identities | Own processes only; desktop/session protection |
 | Switch to / close app | Focus/close a Hyprland window | First window of a group |

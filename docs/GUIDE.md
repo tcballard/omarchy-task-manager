@@ -55,7 +55,9 @@ Colors are read from `$XDG_STATE_HOME/omarchy/current/theme/colors.toml` (defaul
 
 ## Familiar controls
 
-- Ctrl+1 through Ctrl+7: the seven pages. Ctrl+F: search. Ctrl+N: run a new task. F5: refresh. Escape: dismiss a dialog or close the panel.
+Summary opens by default on a fresh install. It shows current CPU and memory use and up to five applications ordered by CPU use. Select an application for its normal close controls, or use **Find an app** to search the full Applications list. Your last page remains saved across launches. CPU use alone does not mean an application is frozen.
+
+- Ctrl+0: Summary. Ctrl+1 through Ctrl+7: the other seven pages. Ctrl+F: search. Ctrl+N: run a new task. F5: refresh. Escape: dismiss a dialog or close the panel.
 - Click a column heading to sort; drag its right divider to resize (or focus the heading and press Shift+Left/Right). Double-click a divider or choose **Columns → Reset column widths** to restore automatic sizing. Use **Columns** for disk I/O, GPU, owner and thread counts. Up/Down selects rows; right-click or **More** exposes process actions.
 - **Close window** requests a normal close for an application's first window, permitting a save prompt. **Terminate** sends SIGTERM. **Force quit** sends SIGKILL. **End process tree** confirms the fixed descendants found in the current snapshot.
 - Application restart terminates the selected group and invokes its known desktop launcher. If it does not exit within three seconds, the app is not relaunched automatically.

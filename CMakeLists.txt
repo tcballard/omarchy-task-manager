@@ -11,7 +11,7 @@ add_custom_command(OUTPUT ${CMAKE_BINARY_DIR}/omarchy-task-manager-core
     DEPENDS src/slow.rs src/bounded.rs src/command.rs src/desktop_entry.rs src/storage.rs src/main.rs src/process.rs src/metrics.rs src/desktop.rs src/manage.rs src/history.rs src/gpu.rs Cargo.toml Cargo.lock)
 add_custom_target(core ALL DEPENDS ${CMAKE_BINARY_DIR}/omarchy-task-manager-core)
 qt_add_executable(omarchy-task-manager ui/main.cpp ui/bridge.cpp ui/bridge.h)
-set(TASK_MANAGER_QML ui/ColumnHeader.qml ui/omarchy-logo.svg ui/Main.qml ui/HistoryChart.qml ui/PanelButton.qml ui/ManagementView.qml ui/PlainLabel.qml ui/Theme.js ui/TableViewport.qml)
+set(TASK_MANAGER_QML ui/ColumnHeader.qml ui/omarchy-logo.svg ui/Main.qml ui/SummaryView.qml ui/HistoryChart.qml ui/PanelButton.qml ui/ManagementView.qml ui/PlainLabel.qml ui/Theme.js ui/TableViewport.qml)
 qt_add_resources(omarchy-task-manager qml PREFIX "/" FILES ${TASK_MANAGER_QML})
 target_link_libraries(omarchy-task-manager PRIVATE Qt6::Core Qt6::Gui Qt6::Quick Qt6::Qml Qt6::QuickControls2 Qt6::Network)
 add_dependencies(omarchy-task-manager core)

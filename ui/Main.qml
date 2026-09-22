@@ -45,6 +45,7 @@ ApplicationWindow {
     property bool modalOpen: confirm.visible || runTask.visible || inspector.visible || tuning.visible
     property bool processPage: backend.page === "apps" || backend.page === "processes"
     property var pageNames: ({
+            "summary": "Summary",
             "apps": "Applications",
             "processes": "Processes",
             "performance": "Performance",
@@ -306,7 +307,16 @@ ApplicationWindow {
     Shortcut {
         sequence: "Ctrl+F"
         enabled: !root.modalOpen
-        onActivated: search.forceActiveFocus()
+        onActivated: {
+            if (backend.page === "summary" || backend.page === "performance")
+                backend.page = "apps";
+            search.forceActiveFocus();
+        }
+    }
+    Shortcut {
+        sequence: "Ctrl+0"
+        enabled: !root.modalOpen
+        onActivated: backend.page = "summary"
     }
     Shortcut {
         sequence: "Ctrl+1"
@@ -363,6 +373,11 @@ ApplicationWindow {
                         }
                         Repeater {
                             model: [
+                                {
+                                    "page": "summary",
+                                    "name": "Summary",
+                                    "mark": "⌂"
+                                },
                                 {
                                     "page": "apps",
                                     "name": "Applications",
@@ -499,7 +514,7 @@ ApplicationWindow {
                             visible: !root.compact
                             Layout.fillWidth: true
                             elide: Text.ElideRight
-                            text: backend.page === "apps" ? "Running windows and their processes" : backend.page === "processes" ? "Processes, resource use, and controls" : backend.page === "performance" ? "Live resource use · 60-second history" : "Monitor and manage your system"
+                            text: backend.page === "summary" ? "Find what is busy and get back to work" : backend.page === "apps" ? "Running windows and their processes" : backend.page === "processes" ? "Processes, resource use, and controls" : backend.page === "performance" ? "Live resource use · 60-second history" : "Monitor and manage your system"
                             font.pixelSize: root.fontSize("body", 12)
                             color: muted
                         }
@@ -546,7 +561,7 @@ ApplicationWindow {
                     }
                 }
                 RowLayout {
-                    visible: backend.page !== "performance"
+                    visible: backend.page !== "performance" && backend.page !== "summary"
                     Layout.fillWidth: true
                     spacing: 12
                     TextField {
@@ -735,9 +750,27 @@ ApplicationWindow {
                         }
                     }
                 }
+                SummaryView {
+                    objectName: "summaryView"
+                    visible: backend.page === "summary"
+                    Layout.fillWidth: true
+                    Layout.fillHeight: true
+                    Layout.minimumHeight: 0
+                    snapshot: root.snap
+                    history: backend.history
+                    fg: root.fg
+                    accent: root.accent
+                    muted: root.muted
+                    panel: root.panel
+                    line: root.line
+                    textScale: root.layoutScale
+                    onOpenApplications: { backend.page = "apps"; search.forceActiveFocus(); }
+                    onOpenPerformance: backend.page = "performance"
+                    onSelectApplication: function(key) { backend.page = "apps"; backend.selected = key; }
+                }
                 ManagementView {
                     textScale: root.layoutScale
-                    visible: !root.processPage && backend.page !== "performance"
+                    visible: !root.processPage && backend.page !== "performance" && backend.page !== "summary"
                     Layout.fillWidth: true
                     Layout.fillHeight: true
                     bg: root.bg

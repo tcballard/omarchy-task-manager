@@ -14,7 +14,7 @@ A graphical task manager for seeing what's running, finding what's slowing your 
 
 I built this because moving from Windows shouldn't mean relearning how to find a runaway process or close a frozen app. Sometimes you just want to find the application, close it, and carry on.
 
-Search for an app by name, check its CPU and memory use, and request a normal close. If it won't close, **Force quit** is available with confirmation; unsaved work may be lost. Performance graphs, startup apps, services and process details are there when you need to look deeper.
+Start on Summary to see CPU, memory and running applications, then find an app by name, check its use, and request a normal close. If it won't close, **Force quit** is available with confirmation; unsaved work may be lost. Performance graphs, startup apps, services and process details are there when you need to look deeper.
 
 The screenshot above is from my XPS running Omarchy with the Familiar theme, captured on 21 September 2026.
 
