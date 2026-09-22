@@ -89,6 +89,64 @@ private slots:
     QVERIFY(QDir(theme).removeRecursively());
     QVERIFY(QDir(theme + ".previous").removeRecursively());
   }
+  void backgroundServiceSetting() {
+    if (qEnvironmentVariable("TASK_MANAGER_LIVE_BACKGROUND") != "1")
+      QSKIP("Requires the disposable CI user and installed collector fixture");
+    BackgroundMonitor monitor;
+    monitor.setEnabled(true);
+    QTRY_VERIFY_WITH_TIMEOUT(!monitor.busy(), 10000);
+    QVERIFY2(monitor.status().startsWith("Background collection enabled"), qPrintable(monitor.status()));
+    QVERIFY(monitor.enabled());
+    const auto cache = qEnvironmentVariable("XDG_RUNTIME_DIR") + "/omarchy-task-manager-monitor/history.json";
+    QTRY_VERIFY_WITH_TIMEOUT(QFile::exists(cache), 5000);
+    monitor.setEnabled(false);
+    QTRY_VERIFY_WITH_TIMEOUT(!monitor.busy(), 10000);
+    QVERIFY2(!monitor.enabled(), qPrintable(monitor.status()));
+    QVERIFY(!QFile::exists(cache));
+    BackgroundMonitor reopened;
+    QVERIFY(!reopened.enabled());
+    reopened.initialize();
+    QVERIFY(!reopened.busy());
+    const auto bus = qgetenv("DBUS_SESSION_BUS_ADDRESS");
+    qputenv("DBUS_SESSION_BUS_ADDRESS", "unix:path=/nonexistent-task-manager-test-bus");
+    reopened.setEnabled(true);
+    QTRY_VERIFY_WITH_TIMEOUT(!reopened.busy(), 10000);
+    QVERIFY(!reopened.enabled());
+    QVERIFY(reopened.status().contains("could not be changed"));
+    qputenv("DBUS_SESSION_BUS_ADDRESS", bus);
+  }
+  void restoredBackgroundHistory() {
+    QTemporaryDir runtime;
+    QVERIFY(runtime.isValid());
+    const auto previousRuntime = qgetenv("XDG_RUNTIME_DIR");
+    qputenv("XDG_RUNTIME_DIR", runtime.path().toUtf8());
+    QProcess collector;
+    collector.start(QCoreApplication::applicationDirPath() + "/omarchy-task-manager-core", {"--monitor"});
+    QVERIFY(collector.waitForStarted());
+    QTest::qWait(2400);
+    {
+      Bridge backend;
+      QTRY_VERIFY_WITH_TIMEOUT(backend.history().size() >= 3, 8000);
+      QVERIFY(backend.history().first().toMap().value("time").toLongLong() < 0);
+      backend.setPaused(true);
+      const auto frozen = backend.history();
+      QTest::qWait(1100);
+      QCOMPARE(backend.history(), frozen);
+      backend.setPaused(false);
+      QTRY_VERIFY_WITH_TIMEOUT(backend.history() != frozen, 8000);
+      QVERIFY(backend.history().first().toMap().value("time").toLongLong() >= 0);
+    }
+    QVERIFY(collector.state() == QProcess::Running);
+    {
+      Bridge reopened;
+      QTRY_VERIFY_WITH_TIMEOUT(reopened.history().size() >= 3, 8000);
+      QVERIFY(reopened.history().first().toMap().value("time").toLongLong() < 0);
+    }
+    collector.terminate();
+    QVERIFY(collector.waitForFinished(3000));
+    if (previousRuntime.isNull()) qunsetenv("XDG_RUNTIME_DIR");
+    else qputenv("XDG_RUNTIME_DIR", previousRuntime);
+  }
   void backgroundHistory_data() {
     QTest::addColumn<bool>("minimized");
     QTest::newRow("hidden") << false;
@@ -369,11 +427,13 @@ int main(int argc, char **argv) {
   qputenv("QT_QPA_PLATFORM", "offscreen");
   qputenv("QT_QUICK_BACKEND", "software");
   QTemporaryDir config;
-  qputenv("XDG_CONFIG_HOME", config.path().toUtf8());
+  if (qEnvironmentVariable("TASK_MANAGER_LIVE_BACKGROUND") != "1")
+    qputenv("XDG_CONFIG_HOME", config.path().toUtf8());
   qputenv("XDG_STATE_HOME", config.path().toUtf8());
   QGuiApplication app(argc, argv);
   app.setOrganizationName("task-manager-tests");
   app.setApplicationName("ui");
+  qmlRegisterUncreatableType<BackgroundMonitor>("TaskManager", 1, 0, "BackgroundMonitor", "Owned by backend");
   qmlRegisterUncreatableType<Rows>("TaskManager", 1, 0, "Rows",
                                    "Backend owned");
   UiTest test;

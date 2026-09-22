@@ -6,6 +6,7 @@ mod gpu;
 mod history;
 mod manage;
 mod metrics;
+mod monitor;
 mod process;
 mod slow;
 mod storage;
@@ -15,6 +16,13 @@ fn main() {
     if let Err(e) = command::install_cancellation() {
         eprintln!("Cannot install worker shutdown handler: {e}");
         std::process::exit(1);
+    }
+    if std::env::args().any(|a| a == "--monitor") {
+        if let Err(error) = monitor::run() {
+            eprintln!("Background monitoring: {error}");
+            std::process::exit(1);
+        }
+        return;
     }
     let mut sampler = metrics::Sampler::new();
     let desktop = desktop::Desktop::new();
@@ -38,13 +46,17 @@ fn main() {
                     if req["reset"].as_bool().unwrap_or(false) {
                         sampler.invalidate();
                     }
-                    snapshot(
+                    let mut value = snapshot(
                         &mut sampler,
                         &desktop,
                         &mut history,
                         &mut cache,
                         req["page"].as_str().unwrap_or("apps"),
-                    )
+                    );
+                    if req["background_history"].as_bool().unwrap_or(false) {
+                        value["background"] = monitor::history().unwrap_or(Value::Null);
+                    }
+                    value
                 }
                 "manage" => {
                     cache.0.clear();

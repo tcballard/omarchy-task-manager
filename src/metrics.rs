@@ -329,3 +329,47 @@ mod tests {
         assert!(s["memory"]["total"].as_u64().unwrap() > 0);
     }
 }
+
+/// Basic procfs counters only: collected independently of the GUI.
+#[derive(Default)]
+pub struct BasicSampler {
+    time: Option<u64>,
+    monotonic: Option<Instant>,
+    cpus: Vec<(String, u64, u64)>,
+    networks: HashMap<String, (u64, u64)>,
+    disks: HashMap<String, (u64, u64)>,
+}
+impl BasicSampler {
+    pub fn sample(&mut self, now: u64) -> (Value, bool) {
+        let instant = Instant::now();
+        let seconds = self.monotonic.map(|t| instant.duration_since(t).as_secs_f64());
+        let boot_delta = self.time.and_then(|t| now.checked_sub(t)).map(|t| t as f64 / 1000.0);
+        let valid = seconds.filter(|s| boot_delta.is_some_and(|b| continuous(*s, b)));
+        let cpus = cpu_ticks();
+        let mut point = json!({"time":now});
+        for (name, total, idle) in &cpus {
+            let usage = valid.and_then(|_| self.cpus.iter().find(|c| &c.0 == name))
+                .and_then(|(_, t, i)| {
+                    let dt = total.checked_sub(*t)?;
+                    let di = idle.checked_sub(*i)?;
+                    (dt > 0 && di <= dt).then(|| 100.0 * (dt - di) as f64 / dt as f64)
+                });
+            point[name] = json!(usage);
+        }
+        let memory = mem();
+        point["memory"] = json!(memory["total"].as_f64().filter(|v| *v > 0.0)
+            .map(|total| 100.0 * memory["used"].as_f64().unwrap_or(0.0) / total));
+        let networks = net();
+        let disks = disk();
+        for (category, new, old) in [("network", &networks, &self.networks), ("disks", &disks, &self.disks)] {
+            for (name, (a, b)) in new {
+                let prior = old.get(name).zip(valid);
+                point[format!("{category}:{name}:first")] = json!(prior.and_then(|((o,_),s)| delta(*a,*o,s)));
+                point[format!("{category}:{name}:second")] = json!(prior.and_then(|((_,o),s)| delta(*b,*o,s)));
+            }
+        }
+        self.time = Some(now); self.monotonic = Some(instant);
+        self.cpus = cpus; self.networks = networks; self.disks = disks;
+        (point, valid.is_some())
+    }
+}

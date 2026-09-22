@@ -1,6 +1,6 @@
 # Product direction
 
-Agreed 20 September 2026; Summary-first direction added 22 September 2026. This is the desired experience and the basis for product decisions, not a claim that every part is already implemented or verified. FEATURES.md records current capability; verification records describe tested behaviour. This direction supersedes the original SCOPE.md wherever product priorities differ.
+Agreed 20 September 2026; Summary-first and independent background monitoring added 22 September 2026. This is the desired experience and the basis for product decisions, not a claim that every part is already implemented or verified. FEATURES.md records current capability; verification records describe tested behaviour. This direction supersedes the original SCOPE.md wherever product priorities differ.
 
 ## Who we build for
 
@@ -39,7 +39,7 @@ Use disposable applications and unsaved test documents. These are target accepta
 | Cancellation | Cancelling the force-quit confirmation performs no destructive action. |
 | Changing target | Refresh, sorting, app exit or PID reuse cannot redirect an action to another application. |
 | Ambiguous or denied action | The panel explains the limitation; it does not guess at ownership, close unrelated apps or claim success. Technical detail is available when needed. |
-| Background monitoring | While Task Manager remains running, hiding, minimising or switching workspaces preserves continuous recent graph history. Explicit Pause freezes readings; quitting stops collection. |
+| Background monitoring | A per-user collector retains the most recent minute of basic CPU, memory, disk and network history after Super + W closes the window. Reopening imports fresh history. Background monitoring can be disabled; Pause live view freezes the display without stopping the collector. |
 | Slow computer | The user can identify high CPU or memory use in Applications without learning diagnostic terminology. |
 | Native desktop | On a live Omarchy session, mouse and keyboard users can complete the flow at supported display scales and in light/dark themes. |
 

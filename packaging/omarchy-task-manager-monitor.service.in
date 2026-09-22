@@ -1,0 +1,14 @@
+[Unit]
+Description=Task Manager basic performance history
+
+[Service]
+Type=simple
+ExecStart=@CMAKE_INSTALL_PREFIX@/lib/omarchy-task-manager/omarchy-task-manager-core --monitor
+Restart=on-failure
+RestartSec=3
+TimeoutStopSec=3
+NoNewPrivileges=yes
+UMask=0077
+
+[Install]
+WantedBy=default.target

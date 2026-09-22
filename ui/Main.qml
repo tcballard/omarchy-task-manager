@@ -460,9 +460,9 @@ ApplicationWindow {
                         PanelButton {
                             Layout.minimumHeight: 34
                             Layout.fillWidth: true
-                            text: root.sidebarCollapsed ? (backend.paused ? "▶" : "Ⅱ") : (backend.paused ? "Resume monitoring" : "Pause monitoring")
+                            text: root.sidebarCollapsed ? (backend.paused ? "▶" : "Ⅱ") : (backend.paused ? "Resume live view" : "Pause live view")
                             implicitWidth: root.sidebarCollapsed ? 40 : 160
-                            Accessible.name: backend.paused ? "Resume monitoring" : "Pause monitoring"
+                            Accessible.name: backend.paused ? "Resume live view" : "Pause live view"
                             ToolTip.visible: hovered
                             ToolTip.text: Accessible.name
                             onClicked: backend.paused = !backend.paused
@@ -1200,6 +1200,24 @@ ApplicationWindow {
             onTriggered: backend.exportSnapshot()
         }
         MenuItem {
+            objectName: "backgroundMonitoringToggle"
+            text: "Background monitoring"
+            checkable: true
+            checked: backend.background.enabled
+            enabled: !backend.background.busy
+            onTriggered: backend.background.setEnabled(!backend.background.enabled)
+        }
+        MenuItem {
+            text: backend.background.status
+            enabled: false
+            implicitWidth: 380 * root.layoutScale
+            contentItem: PlainLabel {
+                text: backend.background.status
+                color: root.muted
+                wrapMode: Text.WordWrap
+            }
+        }
+        MenuItem {
             text: "Stay open"
             checkable: true
             checked: root.pinned
@@ -1213,7 +1231,7 @@ ApplicationWindow {
             onTriggered: root.toggleSidebar()
         }
         MenuItem {
-            text: backend.paused ? "Resume monitoring" : "Pause monitoring"
+            text: backend.paused ? "Resume live view" : "Pause live view"
             onTriggered: backend.paused = !backend.paused
         }
         Menu {

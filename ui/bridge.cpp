@@ -118,7 +118,8 @@ bool Bridge::send(const QVariantMap &v) {
 }
 void Bridge::refresh() {
   if (!m_paused &&
-      send({{"op", "sample"}, {"page", m_page}, {"reset", m_resetSample}}))
+      send({{"op", "sample"}, {"page", m_page}, {"reset", m_resetSample},
+            {"background_history", m_restoreBackground && m_background.enabled()}}))
     m_resetSample = false;
 }
 void Bridge::receive() {
@@ -181,6 +182,19 @@ void Bridge::handleResponse(const QVariantMap &v) {
     for (const auto &gpu : sys.value("gpus").toList()) {
       auto g = gpu.toMap();
       historyPoint["gpu:" + g.value("device").toString()] = g.value("usage");
+    }
+    if (m_restoreBackground) {
+      m_restoreBackground = false;
+      const auto background = v.value("background").toMap();
+      const auto now = background.value("now").toLongLong();
+      for (const auto &entry : background.value("points").toList()) {
+        auto point = entry.toMap();
+        const auto age = now - point.value("time").toLongLong();
+        if (age >= 0 && age <= 60000) {
+          point["time"] = m_clock.elapsed() - age;
+          m_history.append(point);
+        }
+      }
     }
     m_history.append(historyPoint);
     while (m_history.size() > 1 &&
@@ -266,8 +280,10 @@ void Bridge::setTree(bool v) {
 }
 void Bridge::setPaused(bool v) {
   m_paused = v;
-  if (v)
+  if (v) {
     m_resetSample = true;
+    m_restoreBackground = false;
+  }
   emit preferencesChanged();
   if (!v)
     refresh();

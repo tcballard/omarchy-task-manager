@@ -28,6 +28,9 @@ jobs:
           chmod 755 "$service_fixture"
           install -m755 build/omarchy-task-manager-core "$service_fixture/core"
           install -m644 tests/live_services.py "$service_fixture/live_services.py"
+          install -m755 build/ui-test "$service_fixture/ui-test"
+          install -m755 build/omarchy-task-manager-core "$service_fixture/omarchy-task-manager-core"
+          sed "s|^ExecStart=.*|ExecStart=$service_fixture/core --monitor|" build/omarchy-task-manager-monitor.service > "$service_fixture/omarchy-task-manager-monitor.service"
           sudo env GITHUB_ACTIONS=true python3 "$service_fixture/live_services.py" "$service_fixture/core" --scope system
           service_user=task-manager-ci
           sudo useradd --create-home "$service_user"
@@ -41,6 +44,12 @@ jobs:
           sudo loginctl enable-linger "$service_user"
           sudo systemctl start "user@$service_uid.service"
           sudo -u "$service_user" env XDG_RUNTIME_DIR="/run/user/$service_uid" DBUS_SESSION_BUS_ADDRESS="unix:path=/run/user/$service_uid/bus" python3 "$service_fixture/live_services.py" "$service_fixture/core" --scope user
+          sudo -u "$service_user" mkdir -p "/home/$service_user/.config/systemd/user"
+          sudo install -o "$service_user" -g "$service_user" -m644 "$service_fixture/omarchy-task-manager-monitor.service" "/home/$service_user/.config/systemd/user/omarchy-task-manager-monitor.service"
+          sudo -u "$service_user" env XDG_RUNTIME_DIR="/run/user/$service_uid" DBUS_SESSION_BUS_ADDRESS="unix:path=/run/user/$service_uid/bus" systemctl --user daemon-reload
+          sudo -u "$service_user" env XDG_RUNTIME_DIR="/run/user/$service_uid" DBUS_SESSION_BUS_ADDRESS="unix:path=/run/user/$service_uid/bus" TASK_MANAGER_LIVE_BACKGROUND=1 "$service_fixture/ui-test" -nocrashhandler backgroundServiceSetting
+          if sudo -u "$service_user" env XDG_RUNTIME_DIR="/run/user/$service_uid" DBUS_SESSION_BUS_ADDRESS="unix:path=/run/user/$service_uid/bus" systemctl --user is-enabled omarchy-task-manager-monitor.service; then exit 1; fi
+          test ! -e "/run/user/$service_uid/omarchy-task-manager-monitor/history.json"
       - name: Installed application smoke
         run: |
           DESTDIR="$RUNNER_TEMP/task-manager-stage" cmake --install build --prefix /usr
@@ -93,7 +102,7 @@ jobs:
           if grep -E ' E: ' dist/namcap.txt; then exit 1; fi
           bsdtar -tf "${packages[0]}" > dist/package-files.txt
           if grep -Ev '^(\.[A-Z]+|usr(/.*)?)/?$' dist/package-files.txt; then exit 1; fi
-          for path in usr/bin/omarchy-task-manager usr/lib/omarchy-task-manager/omarchy-task-manager-core usr/share/applications/io.github.tcballard.TaskManager.desktop usr/share/licenses/omarchy-task-manager/LICENSE; do
+          for path in usr/bin/omarchy-task-manager usr/lib/omarchy-task-manager/omarchy-task-manager-core usr/share/applications/io.github.tcballard.TaskManager.desktop usr/share/licenses/omarchy-task-manager/LICENSE usr/lib/systemd/user/omarchy-task-manager-monitor.service; do
             grep -Fx "$path" dist/package-files.txt
           done
       - name: Fresh install, upgrade from v0.0.2, reinstall and remove
