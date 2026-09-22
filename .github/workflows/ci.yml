@@ -36,6 +36,7 @@ jobs:
           sudo useradd --create-home "$service_user"
           service_uid=$(id -u "$service_user")
           cleanup() {
+            sudo journalctl _UID="$service_uid" --no-pager -n 60 || true
             sudo loginctl disable-linger "$service_user" || true
             sudo loginctl terminate-user "$service_user" || true
             sudo userdel --remove "$service_user" || true
