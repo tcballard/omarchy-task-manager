@@ -144,7 +144,7 @@ jobs:
             dist/namcap.txt
             dist/package-files.txt
   release:
-    name: Publish v0.0.3 preview
+    name: Publish v0.0.4 preview
     needs: [linux, arch-package]
     if: github.event_name == 'push' && github.ref == 'refs/heads/main' && github.repository == 'tcballard/omarchy-task-manager'
     runs-on: ubuntu-24.04
@@ -152,7 +152,7 @@ jobs:
     permissions:
       contents: write
     concurrency:
-      group: publish-v0.0.3
+      group: publish-v0.0.4
       cancel-in-progress: false
     steps:
       - uses: actions/checkout@v4
@@ -160,7 +160,7 @@ jobs:
         id: version
         run: |
           version=$(python3 -c 'import tomllib; print(tomllib.load(open("Cargo.toml", "rb"))["package"]["version"])')
-          if [ "$version" = "0.0.3" ]; then
+          if [ "$version" = "0.0.4" ]; then
             echo "publish=true" >> "$GITHUB_OUTPUT"
           fi
       - uses: actions/download-artifact@v4
@@ -175,18 +175,18 @@ jobs:
           GH_REPO: ${{ github.repository }}
         run: |
           set -euo pipefail
-          existing=$(gh api "repos/$GH_REPO/releases" --paginate --jq '.[] | select(.tag_name == "v0.0.3") | .html_url')
+          existing=$(gh api "repos/$GH_REPO/releases" --paginate --jq '.[] | select(.tag_name == "v0.0.4") | .html_url')
           if [ -n "$existing" ]; then
-            echo "Updating v0.0.3 release notes: $existing"
-            gh release edit v0.0.3 --notes-file RELEASE_NOTES.md
+            echo "Updating v0.0.4 release notes: $existing"
+            gh release edit v0.0.4 --notes-file RELEASE_NOTES.md
             exit 0
           fi
-          tags=$(gh api "repos/$GH_REPO/git/matching-refs/tags/v0.0.3" --jq '.[] | select(.ref == "refs/tags/v0.0.3") | .object.sha')
+          tags=$(gh api "repos/$GH_REPO/git/matching-refs/tags/v0.0.4" --jq '.[] | select(.ref == "refs/tags/v0.0.4") | .object.sha')
           if [ -n "$tags" ]; then
-            echo "Refusing to reuse an existing v0.0.3 tag without a release"
+            echo "Refusing to reuse an existing v0.0.4 tag without a release"
             exit 1
           fi
           (cd release-assets && sha256sum --check SHA256SUMS)
           grep -Fx "Commit: $GITHUB_SHA" release-assets/BUILD-INFO.txt
-          gh release create v0.0.3 release-assets/* --target "$GITHUB_SHA" --draft --prerelease --title "v0.0.3 — Ready for repository packaging" --notes-file RELEASE_NOTES.md
-          gh release edit v0.0.3 --draft=false
+          gh release create v0.0.4 release-assets/* --target "$GITHUB_SHA" --draft --prerelease --title "v0.0.4 — Beyond Edge" --notes-file RELEASE_NOTES.md
+          gh release edit v0.0.4 --draft=false
