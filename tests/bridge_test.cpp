@@ -95,10 +95,32 @@ private slots:
     QTRY_VERIFY_WITH_TIMEOUT(!bridge.snapshot().isEmpty(), 8000);
     bridge.setPage("processes");
     QVERIFY(bridge.rows()->rowCount() > 0);
-    bridge.setQuery(QString::number(QCoreApplication::applicationPid()));
-    QVERIFY(bridge.rows()->rowCount() > 0);
-    bridge.selectOffset(1);
+    const auto ownPid = QCoreApplication::applicationPid();
+    // Search is substring-based across PID, command and other fields. A
+    // matching first row is not necessarily this test process. Keep a decoy
+    // ahead of it so this selection check cannot pass by lucky PID allocation.
+    auto processes = bridge.m_snapshot.value("processes").toList();
+    processes.append(QVariantMap{
+        {"id", QVariantMap{{"pid", -1}, {"start", 1}}},
+        {"name", "PID search decoy"},
+        {"command", QString::number(ownPid)},
+        {"cpu", 1000000.0},
+        {"protected", false}});
+    bridge.m_snapshot["processes"] = processes;
+    bridge.setQuery(QString::number(ownPid));
+    QVERIFY(bridge.rows()->rowCount() > 1);
+    QCOMPARE(bridge.rows()->rows.first().toMap().value("pid").toInt(), -1);
+    int ownRow = -1;
+    for (int row = 0; row < bridge.rows()->rowCount(); ++row) {
+      if (bridge.rows()->rows[row].toMap().value("pid").toLongLong() == ownPid) {
+        ownRow = row;
+        break;
+      }
+    }
+    QVERIFY(ownRow >= 0);
+    bridge.selectOffset(ownRow + 1);
     QVERIFY(!bridge.selection().isEmpty());
+    QCOMPARE(bridge.selection().value("pid").toLongLong(), ownPid);
     const auto key = bridge.selected();
     bridge.setSort("memory");
     bridge.setDescending(false);
