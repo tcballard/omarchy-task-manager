@@ -108,12 +108,16 @@ private slots:
     reopened.initialize();
     QVERIFY(!reopened.busy());
     const auto bus = qgetenv("DBUS_SESSION_BUS_ADDRESS");
+    const auto runtime = qgetenv("XDG_RUNTIME_DIR");
+    // systemctl can use the private user-manager socket instead of the bus.
+    qputenv("XDG_RUNTIME_DIR", "/nonexistent-task-manager-test-runtime");
     qputenv("DBUS_SESSION_BUS_ADDRESS", "unix:path=/nonexistent-task-manager-test-bus");
     reopened.setEnabled(true);
     QTRY_VERIFY_WITH_TIMEOUT(!reopened.busy(), 15000);
     QVERIFY(!reopened.enabled());
     QVERIFY(reopened.status().contains("could not be changed"));
     qputenv("DBUS_SESSION_BUS_ADDRESS", bus);
+    qputenv("XDG_RUNTIME_DIR", runtime);
   }
   void restoredBackgroundHistory() {
     QTemporaryDir runtime;
