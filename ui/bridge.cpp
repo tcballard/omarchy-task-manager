@@ -117,16 +117,9 @@ bool Bridge::send(const QVariantMap &v) {
   return true;
 }
 void Bridge::refresh() {
-  if (!m_paused && m_visible &&
+  if (!m_paused &&
       send({{"op", "sample"}, {"page", m_page}, {"reset", m_resetSample}}))
     m_resetSample = false;
-}
-void Bridge::active(bool v) {
-  if (!v)
-    m_resetSample = true;
-  m_visible = v;
-  if (v)
-    refresh();
 }
 void Bridge::receive() {
   m_buffer += m_worker.readAllStandardOutput();
@@ -154,7 +147,7 @@ void Bridge::receive() {
 void Bridge::handleResponse(const QVariantMap &v) {
   auto kind = v.value("kind").toString();
   if (kind == "snapshot") {
-    if (m_paused || !m_visible || m_resetSample) {
+    if (m_paused || m_resetSample) {
       refresh(); // Discard a pre-pause response and request a fresh baseline.
       return;
     }

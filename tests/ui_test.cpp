@@ -89,6 +89,55 @@ private slots:
     QVERIFY(QDir(theme).removeRecursively());
     QVERIFY(QDir(theme + ".previous").removeRecursively());
   }
+  void backgroundHistory_data() {
+    QTest::addColumn<bool>("minimized");
+    QTest::newRow("hidden") << false;
+    QTest::newRow("minimized") << true;
+  }
+  void backgroundHistory() {
+    QFETCH(bool, minimized);
+    Bridge backend;
+    backend.setInterval(500);
+    QQmlApplicationEngine engine;
+    engine.rootContext()->setContextProperty("backend", &backend);
+    engine.addImageProvider("icons", new Icons);
+    engine.load(QUrl("qrc:/ui/Main.qml"));
+    QVERIFY(!engine.rootObjects().isEmpty());
+    auto window = qobject_cast<QQuickWindow *>(engine.rootObjects().first());
+    QVERIFY(window);
+    window->setProperty("pinned", true);
+    QTRY_VERIFY_WITH_TIMEOUT(backend.history().size() >= 2, 8000);
+    const auto firstTime = backend.history().first().toMap().value("time");
+    if (minimized)
+      window->showMinimized();
+    else
+      window->hide();
+    QCOMPARE(window->visibility(), minimized ? QWindow::Minimized : QWindow::Hidden);
+    // Require multiple automatic samples, so an in-flight reply cannot pass.
+    const auto before = backend.history().size();
+    QTRY_VERIFY_WITH_TIMEOUT(backend.history().size() >= before + 2, 8000);
+    QCOMPARE(backend.history().first().toMap().value("time"), firstTime);
+    window->showNormal();
+    const auto returning = backend.history().size();
+    QTRY_VERIFY_WITH_TIMEOUT(backend.history().size() >= returning + 2, 8000);
+    QCOMPARE(backend.history().first().toMap().value("time"), firstTime);
+    QVERIFY(backend.snapshot().value("system").toMap().value("continuous").toBool());
+
+    // Manual pause remains authoritative across visibility changes.
+    backend.setPaused(true);
+    QTRY_VERIFY_WITH_TIMEOUT(!backend.busy(), 8000);
+    const auto pausedHistory = backend.history();
+    window->hide();
+    QTest::qWait(1100);
+    QCOMPARE(backend.history(), pausedHistory);
+    window->showNormal();
+    QTest::qWait(600);
+    QCOMPARE(backend.history(), pausedHistory);
+    QVERIFY(backend.paused());
+    backend.setPaused(false);
+    QTRY_VERIFY_WITH_TIMEOUT(backend.history() != pausedHistory, 8000);
+    QVERIFY(backend.history().first().toMap().value("time") != firstTime);
+  }
   void summaryFindsApplications() {
     Bridge backend;
     // Previous tests may have saved another page; explicitly exercise Summary.

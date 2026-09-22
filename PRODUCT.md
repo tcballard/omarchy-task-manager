@@ -39,6 +39,7 @@ Use disposable applications and unsaved test documents. These are target accepta
 | Cancellation | Cancelling the force-quit confirmation performs no destructive action. |
 | Changing target | Refresh, sorting, app exit or PID reuse cannot redirect an action to another application. |
 | Ambiguous or denied action | The panel explains the limitation; it does not guess at ownership, close unrelated apps or claim success. Technical detail is available when needed. |
+| Background monitoring | While Task Manager remains running, hiding, minimising or switching workspaces preserves continuous recent graph history. Explicit Pause freezes readings; quitting stops collection. |
 | Slow computer | The user can identify high CPU or memory use in Applications without learning diagnostic terminology. |
 | Native desktop | On a live Omarchy session, mouse and keyboard users can complete the flow at supported display scales and in light/dark themes. |
 

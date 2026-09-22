@@ -24,7 +24,7 @@ Status: v0.0.4 preview; Summary is implemented on the current development branch
 | File location / properties | Executable folder, commands, status, cgroup, maps, open FDs | Permission-restricted information can be absent |
 | Wait-chain diagnostics | Per-thread kernel wait channels | No deadlock detection or Windows wait-chain API |
 | Create dump | Optional gcore into private directory | gdb + ptrace permission; 60-second limit |
-| Update speed / pause | 0.5/1/2/5 seconds, pause/resume | Hidden/minimized windows stop sampling |
+| Update speed / pause | 0.5/1/2/5 seconds, pause/resume | Continues while hidden/minimized; quitting stops the worker |
 | Copy / export | Copy details, save JSON snapshot | Local files only |
 | Compact floating surface | Frameless Hyprland float, drag, Escape, stay-open/blur-dismiss | Standalone window; no bar anchor or layer-shell |
 | Omarchy theme/font | Monospace alias, semantic palette, shell font sizes and selected control tokens | Solid border; not every shell gradient/spacing/radius token |

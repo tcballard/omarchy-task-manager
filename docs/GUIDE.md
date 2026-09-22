@@ -57,6 +57,8 @@ Colors are read from `$XDG_STATE_HOME/omarchy/current/theme/colors.toml` (defaul
 
 Summary opens by default on a fresh install. It puts up to eight running applications ordered by CPU use above compact CPU and memory history. Select an application for its normal close controls, or use **Find an app** to search the full Applications list. Your last page remains saved across launches. CPU use alone does not mean an application is frozen.
 
+Graphs keep collecting the most recent 60 seconds at your chosen update speed while Task Manager is running, including when hidden, minimised or on another workspace. Returning to the window keeps that history. **Pause monitoring** (and an action confirmation) freezes readings; resuming starts a fresh baseline. Quitting stops collection. With **Stay open** turned off, losing focus closes the app, so leave it on for background monitoring.
+
 - Ctrl+0: Summary. Ctrl+1 through Ctrl+7: the other seven pages. Ctrl+F: search. Ctrl+N: run a new task. F5: refresh. Escape: dismiss a dialog or close the panel.
 - Click a column heading to sort; drag its right divider to resize (or focus the heading and press Shift+Left/Right). Double-click a divider or choose **Columns → Reset column widths** to restore automatic sizing. Use **Columns** for disk I/O, GPU, owner and thread counts. Up/Down selects rows; right-click or **More** exposes process actions.
 - **Close window** requests a normal close for an application's first window, permitting a save prompt. **Terminate** sends SIGTERM. **Force quit** sends SIGKILL. **End process tree** confirms the fixed descendants found in the current snapshot.

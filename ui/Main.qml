@@ -294,9 +294,6 @@ ApplicationWindow {
         backend.savePreference("width", width);
         backend.savePreference("height", height);
     }
-    onVisibilityChanged: function (visibility) {
-        backend.active(visibility !== Window.Minimized && visibility !== Window.Hidden);
-    }
     function ask(force) {
         if (!modalOpen)
             showConfirmation(backend.prepareAction(force));

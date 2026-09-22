@@ -80,7 +80,6 @@ public:
   Q_INVOKABLE void exportSnapshot();
   Q_INVOKABLE void filterUser(int uid);
   Q_INVOKABLE void floatPanel(int width, int height);
-  Q_INVOKABLE void active(bool visible);
   Q_INVOKABLE QVariantMap prepareAction(bool force);
   Q_INVOKABLE QVariantMap prepareTree(bool force);
   Q_INVOKABLE void confirmAction();
@@ -125,7 +124,7 @@ private:
   QElapsedTimer m_clock, m_feedback;
   QString m_page = "apps", m_query, m_sort = "cpu",
           m_status = "Starting monitor…", m_selected;
-  bool m_descending = true, m_tree = false, m_paused = false, m_visible = true,
+  bool m_descending = true, m_tree = false, m_paused = false,
        m_busy = false, m_resetSample = true;
   int m_interval = 1000;
 };
