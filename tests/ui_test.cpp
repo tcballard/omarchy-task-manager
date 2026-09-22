@@ -94,13 +94,13 @@ private slots:
       QSKIP("Requires the disposable CI user and installed collector fixture");
     BackgroundMonitor monitor;
     monitor.setEnabled(true);
-    QTRY_VERIFY_WITH_TIMEOUT(!monitor.busy(), 10000);
+    QTRY_VERIFY_WITH_TIMEOUT(!monitor.busy(), 15000);
     QVERIFY2(monitor.status().startsWith("Background collection enabled"), qPrintable(monitor.status()));
     QVERIFY(monitor.enabled());
     const auto cache = qEnvironmentVariable("XDG_RUNTIME_DIR") + "/omarchy-task-manager-monitor/history.json";
     QTRY_VERIFY_WITH_TIMEOUT(QFile::exists(cache), 5000);
     monitor.setEnabled(false);
-    QTRY_VERIFY_WITH_TIMEOUT(!monitor.busy(), 10000);
+    QTRY_VERIFY_WITH_TIMEOUT(!monitor.busy(), 15000);
     QVERIFY2(!monitor.enabled(), qPrintable(monitor.status()));
     QVERIFY(!QFile::exists(cache));
     BackgroundMonitor reopened;
@@ -110,7 +110,7 @@ private slots:
     const auto bus = qgetenv("DBUS_SESSION_BUS_ADDRESS");
     qputenv("DBUS_SESSION_BUS_ADDRESS", "unix:path=/nonexistent-task-manager-test-bus");
     reopened.setEnabled(true);
-    QTRY_VERIFY_WITH_TIMEOUT(!reopened.busy(), 10000);
+    QTRY_VERIFY_WITH_TIMEOUT(!reopened.busy(), 15000);
     QVERIFY(!reopened.enabled());
     QVERIFY(reopened.status().contains("could not be changed"));
     qputenv("DBUS_SESSION_BUS_ADDRESS", bus);

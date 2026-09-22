@@ -24,6 +24,15 @@ fn main() {
         }
         return;
     }
+    if std::env::args().any(|a| a == "--monitor-status") {
+        match monitor::history() {
+            Some(value) => {
+                let _ = write_response(&mut io::stdout(), &value);
+            }
+            None => std::process::exit(1),
+        }
+        return;
+    }
     let mut sampler = metrics::Sampler::new();
     let desktop = desktop::Desktop::new();
     let mut history = history::History::new();

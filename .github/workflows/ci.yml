@@ -44,6 +44,8 @@ jobs:
           trap cleanup EXIT
           sudo loginctl enable-linger "$service_user"
           sudo systemctl start "user@$service_uid.service"
+          # Keep the disposable manager independent of the runner session environment.
+          sudo -u "$service_user" env XDG_RUNTIME_DIR="/run/user/$service_uid" DBUS_SESSION_BUS_ADDRESS="unix:path=/run/user/$service_uid/bus" systemctl --user set-environment HOME="/home/$service_user" XDG_RUNTIME_DIR="/run/user/$service_uid"
           sudo -u "$service_user" env XDG_RUNTIME_DIR="/run/user/$service_uid" DBUS_SESSION_BUS_ADDRESS="unix:path=/run/user/$service_uid/bus" python3 "$service_fixture/live_services.py" "$service_fixture/core" --scope user
           sudo -u "$service_user" mkdir -p "/home/$service_user/.config/systemd/user"
           sudo install -o "$service_user" -g "$service_user" -m644 "$service_fixture/omarchy-task-manager-monitor.service" "/home/$service_user/.config/systemd/user/omarchy-task-manager-monitor.service"

@@ -28,9 +28,13 @@ fn directory() -> io::Result<PathBuf> {
     let check = |path: &Path| -> io::Result<()> {
         let meta = fs::symlink_metadata(path)?;
         if !meta.is_dir() || meta.uid() != unsafe { libc::getuid() } || meta.mode() & 0o077 != 0 {
-            return Err(io::Error::other(
-                "Runtime directory must be private and owned by this user",
-            ));
+            return Err(io::Error::other(format!(
+                "Runtime directory {} must be private and owned by uid {} (owner {}, mode {:o})",
+                path.display(),
+                unsafe { libc::getuid() },
+                meta.uid(),
+                meta.mode() & 0o777
+            )));
         }
         Ok(())
     };
