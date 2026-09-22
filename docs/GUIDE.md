@@ -55,7 +55,7 @@ Colors are read from `$XDG_STATE_HOME/omarchy/current/theme/colors.toml` (defaul
 
 ## Familiar controls
 
-Summary opens by default on a fresh install. It shows current CPU and memory use and up to five applications ordered by CPU use. Select an application for its normal close controls, or use **Find an app** to search the full Applications list. Your last page remains saved across launches. CPU use alone does not mean an application is frozen.
+Summary opens by default on a fresh install. It puts up to eight running applications ordered by CPU use above compact CPU and memory history. Select an application for its normal close controls, or use **Find an app** to search the full Applications list. Your last page remains saved across launches. CPU use alone does not mean an application is frozen.
 
 - Ctrl+0: Summary. Ctrl+1 through Ctrl+7: the other seven pages. Ctrl+F: search. Ctrl+N: run a new task. F5: refresh. Escape: dismiss a dialog or close the panel.
 - Click a column heading to sort; drag its right divider to resize (or focus the heading and press Shift+Left/Right). Double-click a divider or choose **Columns → Reset column widths** to restore automatic sizing. Use **Columns** for disk I/O, GPU, owner and thread counts. Up/Down selects rows; right-click or **More** exposes process actions.
