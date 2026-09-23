@@ -5,10 +5,10 @@
 ## Build and run on Omarchy
 
 For a fresh install without compiling, download the package and checksums from the
-[v0.0.4 release](https://github.com/tcballard/omarchy-task-manager/releases/tag/v0.0.4)
-and follow its install commands. The same package upgrades an existing installation.
+[GitHub releases](https://github.com/tcballard/omarchy-task-manager/releases)
+and follow that release’s install commands. The same package upgrades an existing installation.
 
-The app was [published to Omarchy's edge repository](https://github.com/omacom/omarchy-pkgs/pull/579#issuecomment-5766245954) as **0.0.3-3** on 21 September 2026. If you already use edge, install with `sudo pacman -Syu omarchy-task-manager`. The repository package includes the pause/resume test and worker-shutdown fixes backported from app PRs #11 and #12. The original GitHub v0.0.3 package predates those fixes. v0.0.4 includes both fixes directly and proposes the fast release ring for Edge, RC and Stable. Availability outside Edge depends on upstream merge and publication. See the [packaging handoff](OMARCHY_PACKAGING.md).
+The app was [published to Omarchy's edge repository](https://github.com/omacom/omarchy-pkgs/pull/579#issuecomment-5766245954) as **0.0.3-3** on 21 September 2026. If you already use edge, install with `sudo pacman -Syu omarchy-task-manager`. The repository package includes the pause/resume test and worker-shutdown fixes backported from app PRs #11 and #12. The original GitHub v0.0.3 package predates those fixes. v0.0.4 includes both fixes directly; its proposed promotion beyond Edge remains a separate upstream decision. A GitHub preview package does not change the package available on an Omarchy channel. See the [packaging handoff](OMARCHY_PACKAGING.md).
 
 Clone the repository and build as your normal user:
 
@@ -109,7 +109,10 @@ Actions in automated tests target disposable children and temporary startup file
 
 ## Removal
 
+If you enabled background monitoring, turn it off in the app menu or run this before removal or downgrade:
+
 ```bash
+systemctl --user disable --now omarchy-task-manager-monitor.service
 sudo pacman -R omarchy-task-manager
 ```
 

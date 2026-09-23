@@ -1,42 +1,27 @@
-# v0.0.4 — Beyond Edge
+# v0.0.5 — Recent history
 
-![Task Manager running on my XPS with the Familiar theme](https://raw.githubusercontent.com/tcballard/omarchy-task-manager/cfdd96635c3a0ef697be82d27cea411d27f3fbf2/docs/screenshots/task-manager-familiar.png)
+**Preview for Omarchy / Arch x86_64.** This build adds a familiar Summary and a small per-user collector so the graphs can show the last minute when Task Manager is opened again.
 
-*Captured on my XPS on 21 September. The interface is unchanged apart from its version label.*
+- **Summary:** compact CPU and memory graphs, running applications and a direct route to Find an app. Existing users can keep their saved page.
+- **History after Super + W:** the installed user service collects basic CPU, memory, disk and network readings once a second while the window is closed. Reopening imports its latest minute. It starts on the first normal launch and then with the user session.
+- **Separate controls:** Pause live view freezes the displayed readings; Background monitoring in the menu disables and stops the independent collector. The choice persists. Detailed process, service, GPU and per-app polling runs only while the window is open.
+- **Bounded local data:** history lives in a private runtime directory, is replaced atomically and expires. The collector requires fresh data before the app reports startup success. It has no network listener and does not enumerate processes.
 
-**Task Manager is ready for the next step beyond Edge.**
+## Install for testing
 
-v0.0.4 brings the fixes already carried by the Edge package into the release itself and prepares the package for Omarchy's RC and Stable channels. Upstream promotion still needs to merge and publish before those channels can install it through pacman.
-
-- **Safer shutdown.** Timers and worker callbacks stop before the window's bridge is destroyed, fixing the shutdown crash found during packaging.
-- **Reliable pause/resume checks.** Tests capture the resumed sample when it arrives, removing the timing failure that blocked the first official build.
-- **A simpler package.** Both fixes are included in the source, so the two downstream patches can go. The package keeps the same name, preferences and history.
-
-## Install or upgrade
-
-On Omarchy's **Edge channel**:
-
-```bash
-sudo pacman -Syu omarchy-task-manager
-```
-
-This installs the version currently published on your channel. The same command will work on RC and Stable once the promotion is published.
-
-For v0.0.4 now on Omarchy / Arch x86_64, download the [package](https://github.com/tcballard/omarchy-task-manager/releases/download/v0.0.4/omarchy-task-manager-0.0.4-1-x86_64.pkg.tar.zst) and [SHA256SUMS](https://github.com/tcballard/omarchy-task-manager/releases/download/v0.0.4/SHA256SUMS) into the same directory:
+After this release is published, download the [x86_64 package](https://github.com/tcballard/omarchy-task-manager/releases/download/v0.0.5/omarchy-task-manager-0.0.5-1-x86_64.pkg.tar.zst) and [SHA256SUMS](https://github.com/tcballard/omarchy-task-manager/releases/download/v0.0.5/SHA256SUMS) to the same directory, then run:
 
 ```bash
 sha256sum --ignore-missing --check SHA256SUMS &&
-sudo pacman -U ./omarchy-task-manager-0.0.4-1-x86_64.pkg.tar.zst
+sudo pacman -U ./omarchy-task-manager-0.0.5-1-x86_64.pkg.tar.zst
 ```
 
-Check that the package reports `OK`, then open **Task Manager** from the launcher. [Super + Alt + Delete setup](https://github.com/tcballard/omarchy-task-manager/blob/v0.0.4/docs/GUIDE.md#keyboard-shortcut) remains optional.
+Open Task Manager from the launcher. To check the new behaviour, leave it open for ten seconds, close it with Super + W, wait ten more seconds and reopen. The graphs should include the time when the window was closed. The menu shows setup errors and lets you switch Background monitoring off. [Keyboard shortcut setup](https://github.com/tcballard/omarchy-task-manager/blob/v0.0.5/docs/GUIDE.md#keyboard-shortcut) remains optional.
 
-## Still improving
+On an Omarchy channel, `sudo pacman -Syu omarchy-task-manager` installs whichever version that channel publishes. This release does not update the upstream channel package. The existing v0.0.4 package remains available for rollback. Before a downgrade, use the menu to turn Background monitoring off or run `systemctl --user disable --now omarchy-task-manager-monitor.service`; v0.0.4 does not install this unit. Downgrade only with a verified v0.0.4 package. User preferences and application history remain; background graph cache is temporary.
 
-This remains a **v0.0.x preview**. Wider package availability does not make it v0.1.0. GPU readings depend on your driver, and the simpler End task flow remains planned.
+## Verification boundary
 
-Publication is gated on Ubuntu and Arch CI, including Rust/Qt tests, repeated shutdown and pause/resume checks, sanitizers, package lint and installation/upgrade/removal checks. The attached `BUILD-INFO.txt` identifies the exact source and run; `SHA256SUMS` covers the assets. Earlier XPS testing is historical; this release does not claim a new live desktop or ARM test.
+CI builds and tests on Ubuntu and Arch, including collector and GUI history lifecycle, real user-service controls, package installation, upgrade and removal. The exact source and checksums are in `BUILD-INFO.txt` and `SHA256SUMS`. Live Super + W/reopen, login, toggle and desktop usability on the XPS still require acceptance. The earlier XPS screenshot predates these features. No ARM or new GPU hardware test is claimed. The End task simplification remains planned.
 
-Remove with `sudo pacman -R omarchy-task-manager`; preferences and history remain. For rollback, use a verified cached `0.0.3-3` Edge package with `sudo pacman -U`. The original GitHub v0.0.3 package predates the shutdown fix. There is no settings or history-format migration.
-
-[All changes since v0.0.3](https://github.com/tcballard/omarchy-task-manager/compare/v0.0.3...v0.0.4)
+[Changes since v0.0.4](https://github.com/tcballard/omarchy-task-manager/compare/v0.0.4...v0.0.5)

@@ -1,6 +1,6 @@
 # Task Manager: Windows-to-Omarchy feature map
 
-Status: v0.0.4 preview; Summary is implemented on the current development branch as of 22 September 2026, pending live desktop acceptance. “Implemented” means executable code and UI exist; live desktop/hardware verification remains separate.
+Status: v0.0.5 preview; Summary is implemented on the current development branch as of 22 September 2026, pending live desktop acceptance. “Implemented” means executable code and UI exist; live desktop/hardware verification remains separate.
 
 | Familiar Windows capability | Omarchy implementation | Boundary |
 |---|---|---|
