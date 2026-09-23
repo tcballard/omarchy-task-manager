@@ -89,6 +89,143 @@ private slots:
     QVERIFY(QDir(theme).removeRecursively());
     QVERIFY(QDir(theme + ".previous").removeRecursively());
   }
+  void backgroundServiceSetting() {
+    if (qEnvironmentVariable("TASK_MANAGER_LIVE_BACKGROUND") != "1")
+      QSKIP("Requires the disposable CI user and installed collector fixture");
+    BackgroundMonitor monitor;
+    monitor.setEnabled(true);
+    QTRY_VERIFY_WITH_TIMEOUT(!monitor.busy(), 15000);
+    QVERIFY2(monitor.status().startsWith("Background collection enabled"), qPrintable(monitor.status()));
+    QVERIFY(monitor.enabled());
+    const auto cache = qEnvironmentVariable("XDG_RUNTIME_DIR") + "/omarchy-task-manager-monitor/history.json";
+    QTRY_VERIFY_WITH_TIMEOUT(QFile::exists(cache), 5000);
+    monitor.setEnabled(false);
+    QTRY_VERIFY_WITH_TIMEOUT(!monitor.busy(), 15000);
+    QVERIFY2(!monitor.enabled(), qPrintable(monitor.status()));
+    QVERIFY(!QFile::exists(cache));
+    BackgroundMonitor reopened;
+    QVERIFY(!reopened.enabled());
+    reopened.initialize();
+    QVERIFY(!reopened.busy());
+    const auto bus = qgetenv("DBUS_SESSION_BUS_ADDRESS");
+    const auto runtime = qgetenv("XDG_RUNTIME_DIR");
+    // systemctl can use the private user-manager socket instead of the bus.
+    qputenv("XDG_RUNTIME_DIR", "/nonexistent-task-manager-test-runtime");
+    qputenv("DBUS_SESSION_BUS_ADDRESS", "unix:path=/nonexistent-task-manager-test-bus");
+    reopened.setEnabled(true);
+    QTRY_VERIFY_WITH_TIMEOUT(!reopened.busy(), 15000);
+    QVERIFY(!reopened.enabled());
+    QVERIFY(reopened.status().contains("could not be changed"));
+    qputenv("DBUS_SESSION_BUS_ADDRESS", bus);
+    qputenv("XDG_RUNTIME_DIR", runtime);
+  }
+  void restoredBackgroundHistory() {
+    QTemporaryDir runtime;
+    QVERIFY(runtime.isValid());
+    const auto previousRuntime = qgetenv("XDG_RUNTIME_DIR");
+    qputenv("XDG_RUNTIME_DIR", runtime.path().toUtf8());
+    QProcess collector;
+    collector.start(QCoreApplication::applicationDirPath() + "/omarchy-task-manager-core", {"--monitor"});
+    QVERIFY(collector.waitForStarted());
+    QTest::qWait(2400);
+    {
+      Bridge backend;
+      QTRY_VERIFY_WITH_TIMEOUT(backend.history().size() >= 3, 8000);
+      QVERIFY(backend.history().first().toMap().value("time").toLongLong() < 0);
+      backend.setPaused(true);
+      const auto frozen = backend.history();
+      QTest::qWait(1100);
+      QCOMPARE(backend.history(), frozen);
+      backend.setPaused(false);
+      QTRY_VERIFY_WITH_TIMEOUT(backend.history() != frozen, 8000);
+      QVERIFY(backend.history().first().toMap().value("time").toLongLong() >= 0);
+    }
+    QVERIFY(collector.state() == QProcess::Running);
+    {
+      Bridge reopened;
+      QTRY_VERIFY_WITH_TIMEOUT(reopened.history().size() >= 3, 8000);
+      QVERIFY(reopened.history().first().toMap().value("time").toLongLong() < 0);
+    }
+    collector.terminate();
+    QVERIFY(collector.waitForFinished(3000));
+    if (previousRuntime.isNull()) qunsetenv("XDG_RUNTIME_DIR");
+    else qputenv("XDG_RUNTIME_DIR", previousRuntime);
+  }
+  void backgroundHistory_data() {
+    QTest::addColumn<bool>("minimized");
+    QTest::newRow("hidden") << false;
+    QTest::newRow("minimized") << true;
+  }
+  void backgroundHistory() {
+    QFETCH(bool, minimized);
+    Bridge backend;
+    backend.setInterval(500);
+    QQmlApplicationEngine engine;
+    engine.rootContext()->setContextProperty("backend", &backend);
+    engine.addImageProvider("icons", new Icons);
+    engine.load(QUrl("qrc:/ui/Main.qml"));
+    QVERIFY(!engine.rootObjects().isEmpty());
+    auto window = qobject_cast<QQuickWindow *>(engine.rootObjects().first());
+    QVERIFY(window);
+    window->setProperty("pinned", true);
+    QTRY_VERIFY_WITH_TIMEOUT(backend.history().size() >= 2, 8000);
+    const auto firstTime = backend.history().first().toMap().value("time");
+    if (minimized)
+      window->showMinimized();
+    else
+      window->hide();
+    QCOMPARE(window->visibility(), minimized ? QWindow::Minimized : QWindow::Hidden);
+    // Require multiple automatic samples, so an in-flight reply cannot pass.
+    const auto before = backend.history().size();
+    QTRY_VERIFY_WITH_TIMEOUT(backend.history().size() >= before + 2, 8000);
+    QCOMPARE(backend.history().first().toMap().value("time"), firstTime);
+    window->showNormal();
+    const auto returning = backend.history().size();
+    QTRY_VERIFY_WITH_TIMEOUT(backend.history().size() >= returning + 2, 8000);
+    QCOMPARE(backend.history().first().toMap().value("time"), firstTime);
+    QVERIFY(backend.snapshot().value("system").toMap().value("continuous").toBool());
+
+    // Manual pause remains authoritative across visibility changes.
+    backend.setPaused(true);
+    QTRY_VERIFY_WITH_TIMEOUT(!backend.busy(), 8000);
+    const auto pausedHistory = backend.history();
+    window->hide();
+    QTest::qWait(1100);
+    QCOMPARE(backend.history(), pausedHistory);
+    window->showNormal();
+    QTest::qWait(600);
+    QCOMPARE(backend.history(), pausedHistory);
+    QVERIFY(backend.paused());
+    backend.setPaused(false);
+    QTRY_VERIFY_WITH_TIMEOUT(backend.history() != pausedHistory, 8000);
+    QVERIFY(backend.history().first().toMap().value("time") != firstTime);
+  }
+  void summaryFindsApplications() {
+    Bridge backend;
+    // Previous tests may have saved another page; explicitly exercise Summary.
+    backend.setPage("summary");
+    QQmlApplicationEngine engine;
+    engine.rootContext()->setContextProperty("backend", &backend);
+    engine.addImageProvider("icons", new Icons);
+    engine.load(QUrl("qrc:/ui/Main.qml"));
+    QVERIFY(!engine.rootObjects().isEmpty());
+    auto window = qobject_cast<QQuickWindow *>(engine.rootObjects().first());
+    QVERIFY(window);
+    QTRY_VERIFY_WITH_TIMEOUT(!backend.snapshot().isEmpty(), 8000);
+    auto summary = window->findChild<QQuickItem *>("summaryView");
+    auto all = window->findChild<QQuickItem *>("summaryViewAllButton");
+    QVERIFY(summary && all);
+    QVERIFY(summary->isVisible());
+    QTest::mouseClick(window, Qt::LeftButton, Qt::NoModifier,
+                      all->mapToScene(QPointF(all->width() / 2,
+                                               all->height() / 2)).toPoint());
+    QCOMPARE(backend.page(), QString("apps"));
+    auto search = window->findChild<QQuickItem *>("searchField");
+    QVERIFY(search);
+    QTRY_VERIFY(search->hasActiveFocus());
+    QTest::keyClick(window, Qt::Key_0, Qt::ControlModifier);
+    QCOMPARE(backend.page(), QString("summary"));
+  }
   void smallPanelAndMalformedTheme() {
     Bridge backend;
     QQmlApplicationEngine engine;
@@ -294,11 +431,13 @@ int main(int argc, char **argv) {
   qputenv("QT_QPA_PLATFORM", "offscreen");
   qputenv("QT_QUICK_BACKEND", "software");
   QTemporaryDir config;
-  qputenv("XDG_CONFIG_HOME", config.path().toUtf8());
+  if (qEnvironmentVariable("TASK_MANAGER_LIVE_BACKGROUND") != "1")
+    qputenv("XDG_CONFIG_HOME", config.path().toUtf8());
   qputenv("XDG_STATE_HOME", config.path().toUtf8());
   QGuiApplication app(argc, argv);
   app.setOrganizationName("task-manager-tests");
   app.setApplicationName("ui");
+  qmlRegisterUncreatableType<BackgroundMonitor>("TaskManager", 1, 0, "BackgroundMonitor", "Owned by backend");
   qmlRegisterUncreatableType<Rows>("TaskManager", 1, 0, "Rows",
                                    "Backend owned");
   UiTest test;

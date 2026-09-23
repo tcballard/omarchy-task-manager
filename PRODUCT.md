@@ -1,6 +1,6 @@
 # Product direction
 
-Agreed 20 September 2026. This is the desired experience and the basis for product decisions, not a claim that every part is already implemented or verified. FEATURES.md records current capability; verification records describe tested behaviour. This direction supersedes the original SCOPE.md wherever product priorities differ.
+Agreed 20 September 2026; Summary-first and independent background monitoring added 22 September 2026. This is the desired experience and the basis for product decisions, not a claim that every part is already implemented or verified. FEATURES.md records current capability; verification records describe tested behaviour. This direction supersedes the original SCOPE.md wherever product priorities differ.
 
 ## Who we build for
 
@@ -11,12 +11,14 @@ Task Manager for Omarchy is an open-source, native, mouse-friendly way to find a
 ## Desired experience
 
 - Ship Super + Alt + Delete as the default shortcut to open or focus Task Manager. The shortcut itself never terminates an app. Preserve existing user bindings and make any conflict visible. The launcher remains available for mouse users.
-- Open to Applications on first launch, with recognisable names and icons, search, and a simple CPU/memory summary. Advanced information must not crowd the primary task.
+- Open to a familiar Summary on first launch with CPU/memory readings, recognisable running applications and an obvious Find an app route. Applications remains one click away with names, icons and search. Advanced information must not crowd the primary task. Existing users may retain their saved page.
 - Make End task the obvious application action. Explain its effect in ordinary language. Attempt a normal window close where supported so the application can offer to save work; a request being sent does not mean the application has closed.
 - If the application remains open, make Force quit easy to find. Name the affected application, warn that unsaved work may be lost, and require explicit confirmation. Never escalate automatically because a timer expires.
 - Show whether the application closed, is still running, or could not be closed. Keep the panel responsive and provide a useful next step after an error.
 - Keep Processes, Services and deeper performance views available as secondary tools. Simplifying the primary journey does not mean removing existing advanced capabilities.
 - Use Omarchy's fonts, colours and floating-panel conventions. Mouse users can complete the entire journey; keyboard navigation remains supported.
+
+The maintainer asked for a Windows-adjacent overview for a nontechnical, 50+ user on 22 September 2026. Summary is an entry point to the safe Applications workflow, not a diagnosis or an automatic recommendation to terminate a busy app.
 
 ## Boundaries
 
@@ -37,6 +39,7 @@ Use disposable applications and unsaved test documents. These are target accepta
 | Cancellation | Cancelling the force-quit confirmation performs no destructive action. |
 | Changing target | Refresh, sorting, app exit or PID reuse cannot redirect an action to another application. |
 | Ambiguous or denied action | The panel explains the limitation; it does not guess at ownership, close unrelated apps or claim success. Technical detail is available when needed. |
+| Background monitoring | A per-user collector retains the most recent minute of basic CPU, memory, disk and network history after Super + W closes the window. Reopening imports fresh history. Background monitoring can be disabled; Pause live view freezes the display without stopping the collector. |
 | Slow computer | The user can identify high CPU or memory use in Applications without learning diagnostic terminology. |
 | Native desktop | On a live Omarchy session, mouse and keyboard users can complete the flow at supported display scales and in light/dark themes. |
 

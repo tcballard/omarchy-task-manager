@@ -1,9 +1,10 @@
 # Task Manager: Windows-to-Omarchy feature map
 
-Status: v0.0.3 preview, 21 September 2026. “Implemented” means executable code and UI exist; live desktop/hardware verification remains separate.
+Status: v0.0.5 preview; Summary is implemented on the current development branch as of 22 September 2026, pending live desktop acceptance. “Implemented” means executable code and UI exist; live desktop/hardware verification remains separate.
 
 | Familiar Windows capability | Omarchy implementation | Boundary |
 |---|---|---|
+| Summary | CPU/memory history and top running applications with a route to Applications | No automatic diagnosis; displayed values depend on available samples |
 | Processes/app groups | Hyprland windows + descendant groups, full readable process list | Shared helpers, Flatpak/Wine/cgroups not fully attributed |
 | End task / end process tree | Confirmed SIGTERM/SIGKILL with fixed PID/start identities | Own processes only; desktop/session protection |
 | Switch to / close app | Focus/close a Hyprland window | First window of a group |
@@ -12,6 +13,7 @@ Status: v0.0.3 preview, 21 September 2026. “Implemented” means executable co
 | CPU/memory performance | Aggregate/per-core history, frequency, RSS, cache, swap, commit counters | Linux accounting and visibility |
 | Disk/network performance | Throughput histories, disk activity/latency, volumes, link metadata | No per-process network attribution |
 | GPU performance | DRM client counters, AMD sysfs, optional nvidia-smi | Driver-specific support; hardware validation pending |
+| Background graphs | User service retains up to 60 seconds of CPU/per-core, memory, disk and network readings after the window closes | One-second cadence; requires installed user service; GPU/per-app history only while the app runs |
 | App history | Persistent sampled CPU time/disk bytes/peak RSS by executable | Only while sampling; no UWP/background network accounting |
 | Startup apps | XDG per-user enable/disable override | Hyprland scripts opened as configuration; no startup impact score |
 | Users | Resource totals and session list, filter processes, lock/sign out | Own-session controls; no administrator impersonation |
@@ -23,7 +25,7 @@ Status: v0.0.3 preview, 21 September 2026. “Implemented” means executable co
 | File location / properties | Executable folder, commands, status, cgroup, maps, open FDs | Permission-restricted information can be absent |
 | Wait-chain diagnostics | Per-thread kernel wait channels | No deadlock detection or Windows wait-chain API |
 | Create dump | Optional gcore into private directory | gdb + ptrace permission; 60-second limit |
-| Update speed / pause | 0.5/1/2/5 seconds, pause/resume | Hidden/minimized windows stop sampling |
+| Update speed / pause | 0.5/1/2/5 seconds, pause/resume | Live-view pause; separate background collection toggle |
 | Copy / export | Copy details, save JSON snapshot | Local files only |
 | Compact floating surface | Frameless Hyprland float, drag, Escape, stay-open/blur-dismiss | Standalone window; no bar anchor or layer-shell |
 | Omarchy theme/font | Monospace alias, semantic palette, shell font sizes and selected control tokens | Solid border; not every shell gradient/spacing/radius token |

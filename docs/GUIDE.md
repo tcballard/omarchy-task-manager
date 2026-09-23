@@ -5,10 +5,10 @@
 ## Build and run on Omarchy
 
 For a fresh install without compiling, download the package and checksums from the
-[v0.0.4 release](https://github.com/tcballard/omarchy-task-manager/releases/tag/v0.0.4)
-and follow its install commands. The same package upgrades an existing installation.
+[GitHub releases](https://github.com/tcballard/omarchy-task-manager/releases)
+and follow that release’s install commands. The same package upgrades an existing installation.
 
-The app was [published to Omarchy's edge repository](https://github.com/omacom/omarchy-pkgs/pull/579#issuecomment-5766245954) as **0.0.3-3** on 21 September 2026. If you already use edge, install with `sudo pacman -Syu omarchy-task-manager`. The repository package includes the pause/resume test and worker-shutdown fixes backported from app PRs #11 and #12. The original GitHub v0.0.3 package predates those fixes. v0.0.4 includes both fixes directly and proposes the fast release ring for Edge, RC and Stable. Availability outside Edge depends on upstream merge and publication. See the [packaging handoff](OMARCHY_PACKAGING.md).
+The app was [published to Omarchy's edge repository](https://github.com/omacom/omarchy-pkgs/pull/579#issuecomment-5766245954) as **0.0.3-3** on 21 September 2026. If you already use edge, install with `sudo pacman -Syu omarchy-task-manager`. The repository package includes the pause/resume test and worker-shutdown fixes backported from app PRs #11 and #12. The original GitHub v0.0.3 package predates those fixes. v0.0.4 includes both fixes directly; its proposed promotion beyond Edge remains a separate upstream decision. A GitHub preview package does not change the package available on an Omarchy channel. See the [packaging handoff](OMARCHY_PACKAGING.md).
 
 Clone the repository and build as your normal user:
 
@@ -49,13 +49,19 @@ Super + Alt + Delete is unassigned in the upstream Omarchy dev bindings checked 
 
 ## Floating panel
 
-The app requests floating placement for its own Hyprland window, centers it on the focused monitor, and uses a frameless draggable header. Reopening focuses the existing instance. Use the top-left menu button to collapse the sidebar to an icon rail, and drag the bottom-right grip to resize the panel. Navigation and column widths are saved locally. The header and action controls fit the window; long lists and wide optional columns scroll within their own views. **Stay open** keeps it visible while you switch applications; turn this off for dismissal when focus leaves the panel. Escape or the close button exits and releases the worker. This is a standalone window, not a bar-anchored Quickshell plugin or fullscreen overlay.
+The app requests floating placement for its own Hyprland window, centers it on the focused monitor, and uses a frameless draggable header. Reopening focuses the existing instance. Use the top-left menu button to collapse the sidebar to an icon rail, and drag the bottom-right grip to resize the panel. Navigation and column widths are saved locally. The header and action controls fit the window; long lists and wide optional columns scroll within their own views. **Stay open** keeps it visible while you switch applications; turn this off for dismissal when focus leaves the panel. Escape, Super + W or the close button exits and releases the detailed worker. Background monitoring continues independently when enabled. This is a standalone window, not a bar-anchored Quickshell plugin or fullscreen overlay.
 
 Colors are read from `$XDG_STATE_HOME/omarchy/current/theme/colors.toml` (default `~/.local/state/omarchy/current/theme/colors.toml`), with the legacy `~/.config/omarchy/current/theme` used only when the state theme directory is absent; popup colors, font sizes, and supported control fills/widths come from `shell.toml`. Invalid or incomplete base palettes fall back together. Font family is `monospace`, following Omarchy's fontconfig alias. Theme replacement is detected by rereading on active samples. Theme gradients, per-edge borders, spacing overrides, opacity and Hyprland corner-radius overrides are not fully mirrored; the panel currently uses a solid accent border and square corners. Font-family changes may require reopening because Qt/fontconfig caches aliases.
 
 ## Familiar controls
 
-- Ctrl+1 through Ctrl+7: the seven pages. Ctrl+F: search. Ctrl+N: run a new task. F5: refresh. Escape: dismiss a dialog or close the panel.
+Summary opens by default on a fresh install. It puts up to eight running applications ordered by CPU use above compact CPU and memory history. Select an application for its normal close controls, or use **Find an app** to search the full Applications list. Your last page remains saved across launches. CPU use alone does not mean an application is frozen.
+
+**Background monitoring** is enabled on the first normal launch of the updated installed package. It collects basic CPU, memory, disk and network metrics once per second and retains up to 60 seconds while the window is closed. Super + W closes the window; reopening restores recent history. The menu shows the setting and service setup errors. Turn it off to disable and stop the collector, including startup on future logins. The choice is remembered. Collection starts at first launch, then at later user-manager starts; it cannot recover time before it started. Failed setup falls back to ordinary live monitoring.
+
+**Pause live view** (and an action confirmation) freezes the displayed readings; resuming starts a fresh live baseline. The collector continues independently. **Stay open** controls dismissal on focus loss only. GPU and per-app history are collected only while the app runs; the collector does not scan processes or query services. UI refresh speed and the fixed one-second background cadence are independent.
+
+- Ctrl+0: Summary. Ctrl+1 through Ctrl+7: the other seven pages. Ctrl+F: search. Ctrl+N: run a new task. F5: refresh. Escape: dismiss a dialog or close the panel.
 - Click a column heading to sort; drag its right divider to resize (or focus the heading and press Shift+Left/Right). Double-click a divider or choose **Columns → Reset column widths** to restore automatic sizing. Use **Columns** for disk I/O, GPU, owner and thread counts. Up/Down selects rows; right-click or **More** exposes process actions.
 - **Close window** requests a normal close for an application's first window, permitting a save prompt. **Terminate** sends SIGTERM. **Force quit** sends SIGKILL. **End process tree** confirms the fixed descendants found in the current snapshot.
 - Application restart terminates the selected group and invokes its known desktop launcher. If it does not exit within three seconds, the app is not relaunched automatically.
@@ -70,7 +76,7 @@ CPU percentages are normalized to total machine capacity. Application and user m
 
 ## Data and limitations
 
-History records your processes grouped by executable while this monitor is actively sampling; it is not an always-on background service. Data is saved every 30 seconds and at normal exit. It cannot account for processes that start and exit entirely between samples. Per-app network traffic, Windows power-impact scores, boot-impact timings, UWP counters, and Windows wait-chain analysis have no direct implementation here.
+The App history page records your processes grouped by executable only while the detailed UI worker samples. It is separate from the basic background graphs. Data is saved every 30 seconds and at normal exit. It cannot account for processes that start and exit entirely between samples. Per-app network traffic, Windows power-impact scores, boot-impact timings, UWP counters, and Windows wait-chain analysis have no direct implementation here.
 
 DRM GPU readings depend on exported driver counters and readable client file descriptors. Shared DRM clients are counted once; the process receiving that attribution may not be the only owner. Intel-style observed-client utilization is not guaranteed to be whole-device utilization. AMD device counters and optional NVIDIA counters are used where available. No GPU-equipped machine was available for acceptance in this workspace.
 
@@ -103,7 +109,10 @@ Actions in automated tests target disposable children and temporary startup file
 
 ## Removal
 
+If you enabled background monitoring, turn it off in the app menu or run this before removal or downgrade:
+
 ```bash
+systemctl --user disable --now omarchy-task-manager-monitor.service
 sudo pacman -R omarchy-task-manager
 ```
 
@@ -112,3 +121,17 @@ Preferences live at `$XDG_CONFIG_HOME/tcballard/omarchy-task-manager.conf`; hist
 See [FEATURES.md](../FEATURES.md), [ARCHITECTURE.md](../ARCHITECTURE.md), [CREDITS.md](../CREDITS.md), and [VERIFICATION.md](../VERIFICATION.md). [SCOPE.md](../SCOPE.md) preserves the original, narrower planning document; the current feature matrix supersedes it.
 
 Our design starts with someone who wants to find and close a frozen app without learning Linux internals. See [product direction and acceptance scenarios](../PRODUCT.md) for the experience we are working towards, and [contributor instructions](../AGENTS.md) for how we keep changes aligned.
+
+## Background collector: testing and removal
+
+After installing this development build, launch Task Manager once and check **Background monitoring** in its menu. Leave it for ten seconds, close with Super + W, wait ten more seconds and reopen. CPU/memory graphs should already contain recent history. Switch the setting off, close/reopen and check that it stays off and graphs start fresh. Check pause/resume separately: the live view freezes while a new window can still load the independent collector's history.
+
+For a source build, install the executable and generated user unit together using the same configured CMake install prefix, then run `systemctl --user daemon-reload`. Running a development binary alone does not install the collector; the menu reports that limitation. Check service state with `systemctl --user status omarchy-task-manager-monitor.service`.
+
+Before uninstalling or rolling back, turn Background monitoring off or run:
+
+```bash
+systemctl --user disable --now omarchy-task-manager-monitor.service
+```
+
+Removing the binary also makes a running collector exit on its next iteration. User preferences and existing App history are preserved. Recent background data lives only under `$XDG_RUNTIME_DIR/omarchy-task-manager-monitor` and is removed on clean collector shutdown or runtime-directory cleanup.

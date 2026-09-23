@@ -17,7 +17,7 @@ int main(int argc, char **argv) {
   QGuiApplication app(argc, argv);
   app.setApplicationName("omarchy-task-manager");
   app.setOrganizationName("tcballard");
-  app.setApplicationVersion("0.0.4");
+  app.setApplicationVersion("0.0.5");
   app.setDesktopFileName("io.github.tcballard.TaskManager");
   const QString runtime =
       QStandardPaths::writableLocation(QStandardPaths::RuntimeLocation);
@@ -42,9 +42,12 @@ int main(int argc, char **argv) {
     std::fprintf(stderr,
                  "Window activation unavailable: local sockets are blocked\n");
   }
+  qmlRegisterUncreatableType<BackgroundMonitor>("TaskManager", 1, 0, "BackgroundMonitor", "Owned by backend");
   qmlRegisterUncreatableType<Rows>("TaskManager", 1, 0, "Rows",
                                    "Owned by backend");
   Bridge bridge;
+  if (!app.arguments().contains("--smoke"))
+    bridge.background()->initialize();
   int pageArg = app.arguments().indexOf("--page");
   if (pageArg >= 0 && pageArg + 1 < app.arguments().size()) {
     QString page = app.arguments()[pageArg + 1];

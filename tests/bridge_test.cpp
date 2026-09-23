@@ -155,17 +155,6 @@ private slots:
                  .value("continuous")
                  .toBool());
     QCOMPARE(historySizes.first(), 1);
-    bridge.active(false);
-    QTest::qWait(600);
-    samples.clear();
-    historySizes.clear();
-    bridge.active(true);
-    QTRY_VERIFY_WITH_TIMEOUT(samples.count() > 0, 8000);
-    QVERIFY(!samples.first().toMap()
-                 .value("system")
-                 .toMap()
-                 .value("continuous")
-                 .toBool());
     QTRY_VERIFY_WITH_TIMEOUT(!bridge.busy(), 8000);
     samples.clear();
     historySizes.clear();

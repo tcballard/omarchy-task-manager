@@ -14,7 +14,7 @@ A graphical task manager for seeing what's running, finding what's slowing your 
 
 I built this because moving from Windows shouldn't mean relearning how to find a runaway process or close a frozen app. Sometimes you just want to find the application, close it, and carry on.
 
-Search for an app by name, check its CPU and memory use, and request a normal close. If it won't close, **Force quit** is available with confirmation; unsaved work may be lost. Performance graphs, startup apps, services and process details are there when you need to look deeper.
+Start on Summary to see running applications and compact CPU and memory history, then find an app by name, check its use, and request a normal close. If it won't close, **Force quit** is available with confirmation; unsaved work may be lost. Performance graphs, startup apps, services and process details are there when you need to look deeper.
 
 The screenshot above is from my XPS running Omarchy with the Familiar theme, captured on 21 September 2026.
 
@@ -28,7 +28,7 @@ sudo pacman -Syu omarchy-task-manager
 
 Open **Task Manager** from the app launcher, or run `omarchy-task-manager`.
 
-The [edge package is live](https://github.com/omacom/omarchy-pkgs/pull/579#issuecomment-5766245954). **v0.0.4 prepares availability on RC and Stable too; upstream promotion is pending.** Until then, other channels can use the [release-package option](docs/GUIDE.md#build-and-run-on-omarchy).
+The [edge package is live](https://github.com/omacom/omarchy-pkgs/pull/579#issuecomment-5766245954), but channel updates follow Omarchy’s separate publication process. For a newer preview, use the [GitHub release package](docs/GUIDE.md#build-and-run-on-omarchy).
 
 ### Keyboard shortcut
 
@@ -48,9 +48,10 @@ On edge, updates arrive with your normal system updates:
 sudo pacman -Syu
 ```
 
-Remove:
+Before removing or downgrading a version with background monitoring, switch it off in the menu or stop and disable its user service:
 
 ```bash
+systemctl --user disable --now omarchy-task-manager-monitor.service
 sudo pacman -R omarchy-task-manager
 ```
 
@@ -58,7 +59,7 @@ Removal keeps your preferences and history. Remove any shortcut you added separa
 
 ## A few useful details
 
-**v0.0.4 preview.** Tested on my XPS and still being refined through v0.0.n before v0.1.0. Full desktop acceptance and GPU accuracy checks remain in the [verification record](VERIFICATION.md).
+**v0.0.5 preview.** The earlier release was tested on my XPS; the Summary and background monitoring still need live acceptance. Refinement continues through v0.0.n before v0.1.0. Full desktop acceptance and GPU accuracy checks remain in the [verification record](VERIFICATION.md).
 
 Usage history stays local and is recorded while Task Manager is sampling. GPU readings depend on your driver; per-app network traffic isn't available. [Capabilities and limitations →](FEATURES.md)
 

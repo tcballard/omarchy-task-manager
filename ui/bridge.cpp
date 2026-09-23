@@ -26,15 +26,15 @@ void Rows::replace(const QVariantList &next) {
     emit dataChanged(index(0), index(rows.size() - 1));
 }
 bool Bridge::validPage(const QString &page) {
-  static const QStringList pages{"apps",     "processes",      "performance",
+  static const QStringList pages{"summary", "apps",     "processes",      "performance",
                                  "history",  "startup",        "users",
                                  "services", "system-services"};
   return pages.contains(page);
 }
 Bridge::Bridge(QObject *p) : QObject(p), m_rows(this) {
-  m_page = m_settings.value("page", "apps").toString();
+  m_page = m_settings.value("page", "summary").toString();
   if (!validPage(m_page))
-    m_page = "apps";
+    m_page = "summary";
   m_interval = m_settings.value("interval", 1000).toInt();
   if (!QList<int>{500, 1000, 2000, 5000}.contains(m_interval))
     m_interval = 1000;
@@ -117,16 +117,10 @@ bool Bridge::send(const QVariantMap &v) {
   return true;
 }
 void Bridge::refresh() {
-  if (!m_paused && m_visible &&
-      send({{"op", "sample"}, {"page", m_page}, {"reset", m_resetSample}}))
+  if (!m_paused &&
+      send({{"op", "sample"}, {"page", m_page}, {"reset", m_resetSample},
+            {"background_history", m_restoreBackground && m_background.enabled()}}))
     m_resetSample = false;
-}
-void Bridge::active(bool v) {
-  if (!v)
-    m_resetSample = true;
-  m_visible = v;
-  if (v)
-    refresh();
 }
 void Bridge::receive() {
   m_buffer += m_worker.readAllStandardOutput();
@@ -154,7 +148,7 @@ void Bridge::receive() {
 void Bridge::handleResponse(const QVariantMap &v) {
   auto kind = v.value("kind").toString();
   if (kind == "snapshot") {
-    if (m_paused || !m_visible || m_resetSample) {
+    if (m_paused || m_resetSample) {
       refresh(); // Discard a pre-pause response and request a fresh baseline.
       return;
     }
@@ -188,6 +182,19 @@ void Bridge::handleResponse(const QVariantMap &v) {
     for (const auto &gpu : sys.value("gpus").toList()) {
       auto g = gpu.toMap();
       historyPoint["gpu:" + g.value("device").toString()] = g.value("usage");
+    }
+    if (m_restoreBackground) {
+      m_restoreBackground = false;
+      const auto background = v.value("background").toMap();
+      const auto now = background.value("now").toLongLong();
+      for (const auto &entry : background.value("points").toList()) {
+        auto point = entry.toMap();
+        const auto age = now - point.value("time").toLongLong();
+        if (age >= 0 && age <= 60000) {
+          point["time"] = m_clock.elapsed() - age;
+          m_history.append(point);
+        }
+      }
     }
     m_history.append(historyPoint);
     while (m_history.size() > 1 &&
@@ -273,8 +280,10 @@ void Bridge::setTree(bool v) {
 }
 void Bridge::setPaused(bool v) {
   m_paused = v;
-  if (v)
+  if (v) {
     m_resetSample = true;
+    m_restoreBackground = false;
+  }
   emit preferencesChanged();
   if (!v)
     refresh();

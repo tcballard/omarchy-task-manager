@@ -1,4 +1,5 @@
 #pragma once
+#include "background.h"
 #include <QAbstractListModel>
 #include <QElapsedTimer>
 #include <QProcess>
@@ -26,6 +27,7 @@ public:
 class Bridge : public QObject {
   Q_OBJECT
   Q_PROPERTY(Rows *rows READ rows CONSTANT)
+  Q_PROPERTY(BackgroundMonitor *background READ background CONSTANT)
   Q_PROPERTY(QVariantMap snapshot READ snapshot NOTIFY snapshotChanged)
   Q_PROPERTY(QString page READ page WRITE setPage NOTIFY preferencesChanged)
   Q_PROPERTY(QString query READ query WRITE setQuery NOTIFY preferencesChanged)
@@ -46,6 +48,7 @@ class Bridge : public QObject {
 public:
   explicit Bridge(QObject *parent = nullptr);
   ~Bridge() override;
+  BackgroundMonitor *background() { return &m_background; }
   Rows *rows() { return &m_rows; }
   QVariantMap snapshot() const { return m_snapshot; }
   QString page() const { return m_page; }
@@ -80,7 +83,6 @@ public:
   Q_INVOKABLE void exportSnapshot();
   Q_INVOKABLE void filterUser(int uid);
   Q_INVOKABLE void floatPanel(int width, int height);
-  Q_INVOKABLE void active(bool visible);
   Q_INVOKABLE QVariantMap prepareAction(bool force);
   Q_INVOKABLE QVariantMap prepareTree(bool force);
   Q_INVOKABLE void confirmAction();
@@ -114,6 +116,8 @@ private:
   void rebuild();
   void message(const QString &);
   void finish();
+  BackgroundMonitor m_background;
+  bool m_restoreBackground = true;
   Rows m_rows;
   QProcess m_worker;
   QTimer m_timer, m_timeout;
@@ -125,7 +129,7 @@ private:
   QElapsedTimer m_clock, m_feedback;
   QString m_page = "apps", m_query, m_sort = "cpu",
           m_status = "Starting monitor…", m_selected;
-  bool m_descending = true, m_tree = false, m_paused = false, m_visible = true,
+  bool m_descending = true, m_tree = false, m_paused = false,
        m_busy = false, m_resetSample = true;
   int m_interval = 1000;
 };

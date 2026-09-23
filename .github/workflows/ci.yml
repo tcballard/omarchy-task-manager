@@ -28,11 +28,15 @@ jobs:
           chmod 755 "$service_fixture"
           install -m755 build/omarchy-task-manager-core "$service_fixture/core"
           install -m644 tests/live_services.py "$service_fixture/live_services.py"
+          install -m755 build/ui-test "$service_fixture/ui-test"
+          install -m755 build/omarchy-task-manager-core "$service_fixture/omarchy-task-manager-core"
+          sed "s|^ExecStart=.*|ExecStart=$service_fixture/core --monitor|" build/omarchy-task-manager-monitor.service > "$service_fixture/omarchy-task-manager-monitor.service"
           sudo env GITHUB_ACTIONS=true python3 "$service_fixture/live_services.py" "$service_fixture/core" --scope system
           service_user=task-manager-ci
           sudo useradd --create-home "$service_user"
           service_uid=$(id -u "$service_user")
           cleanup() {
+            sudo journalctl _UID="$service_uid" --no-pager -n 60 || true
             sudo loginctl disable-linger "$service_user" || true
             sudo loginctl terminate-user "$service_user" || true
             sudo userdel --remove "$service_user" || true
@@ -40,7 +44,15 @@ jobs:
           trap cleanup EXIT
           sudo loginctl enable-linger "$service_user"
           sudo systemctl start "user@$service_uid.service"
+          # Keep the disposable manager independent of the runner session environment.
+          sudo -u "$service_user" env XDG_RUNTIME_DIR="/run/user/$service_uid" DBUS_SESSION_BUS_ADDRESS="unix:path=/run/user/$service_uid/bus" systemctl --user set-environment HOME="/home/$service_user" XDG_RUNTIME_DIR="/run/user/$service_uid"
           sudo -u "$service_user" env XDG_RUNTIME_DIR="/run/user/$service_uid" DBUS_SESSION_BUS_ADDRESS="unix:path=/run/user/$service_uid/bus" python3 "$service_fixture/live_services.py" "$service_fixture/core" --scope user
+          sudo -u "$service_user" mkdir -p "/home/$service_user/.config/systemd/user"
+          sudo install -o "$service_user" -g "$service_user" -m644 "$service_fixture/omarchy-task-manager-monitor.service" "/home/$service_user/.config/systemd/user/omarchy-task-manager-monitor.service"
+          sudo -u "$service_user" env XDG_RUNTIME_DIR="/run/user/$service_uid" DBUS_SESSION_BUS_ADDRESS="unix:path=/run/user/$service_uid/bus" systemctl --user daemon-reload
+          sudo -u "$service_user" env XDG_RUNTIME_DIR="/run/user/$service_uid" DBUS_SESSION_BUS_ADDRESS="unix:path=/run/user/$service_uid/bus" TASK_MANAGER_LIVE_BACKGROUND=1 "$service_fixture/ui-test" -nocrashhandler backgroundServiceSetting
+          if sudo -u "$service_user" env XDG_RUNTIME_DIR="/run/user/$service_uid" DBUS_SESSION_BUS_ADDRESS="unix:path=/run/user/$service_uid/bus" systemctl --user is-enabled omarchy-task-manager-monitor.service; then exit 1; fi
+          test ! -e "/run/user/$service_uid/omarchy-task-manager-monitor/history.json"
       - name: Installed application smoke
         run: |
           DESTDIR="$RUNNER_TEMP/task-manager-stage" cmake --install build --prefix /usr
@@ -66,9 +78,11 @@ jobs:
           set -euo pipefail
           cmake -S . -B build-sanitized -G Ninja -DCMAKE_BUILD_TYPE=Debug -DCMAKE_CXX_FLAGS="-fsanitize=address,undefined -fno-omit-frame-pointer" -DCMAKE_EXE_LINKER_FLAGS="-fsanitize=address,undefined"
           cp ui/bridge.cpp "$RUNNER_TEMP/fixed-bridge.cpp"
-          trap 'cp "$RUNNER_TEMP/fixed-bridge.cpp" ui/bridge.cpp' EXIT
+          cp ui/bridge.h "$RUNNER_TEMP/fixed-bridge.h"
+          trap 'cp "$RUNNER_TEMP/fixed-bridge.cpp" ui/bridge.cpp; cp "$RUNNER_TEMP/fixed-bridge.h" ui/bridge.h' EXIT
           runuser -u builder -- git fetch --depth=1 origin 187a059ebdf6d8198ada2f801b3b794847b2572f
           runuser -u builder -- git show 187a059ebdf6d8198ada2f801b3b794847b2572f:ui/bridge.cpp > ui/bridge.cpp
+          runuser -u builder -- git show 187a059ebdf6d8198ada2f801b3b794847b2572f:ui/bridge.h > ui/bridge.h
           cmake --build build-sanitized --target bridge-test
           if timeout 60s build-sanitized/bridge-test -nocrashhandler shutdownDoesNotPublish > "$RUNNER_TEMP/shutdown-before.log" 2>&1; then
             cat "$RUNNER_TEMP/shutdown-before.log"
@@ -78,6 +92,7 @@ jobs:
           cat "$RUNNER_TEMP/shutdown-before.log"
           grep -F 'FAIL!  : BridgeTest::shutdownDoesNotPublish' "$RUNNER_TEMP/shutdown-before.log"
           cp "$RUNNER_TEMP/fixed-bridge.cpp" ui/bridge.cpp
+          cp "$RUNNER_TEMP/fixed-bridge.h" ui/bridge.h
           cmake --build build-sanitized --target bridge-test
           ASAN_OPTIONS=detect_leaks=1:halt_on_error=1 UBSAN_OPTIONS=halt_on_error=1 ctest --test-dir build-sanitized -R "^bridge$" --repeat until-fail:20 --output-on-failure
       - name: Inspect recipe and package
@@ -90,7 +105,7 @@ jobs:
           if grep -E ' E: ' dist/namcap.txt; then exit 1; fi
           bsdtar -tf "${packages[0]}" > dist/package-files.txt
           if grep -Ev '^(\.[A-Z]+|usr(/.*)?)/?$' dist/package-files.txt; then exit 1; fi
-          for path in usr/bin/omarchy-task-manager usr/lib/omarchy-task-manager/omarchy-task-manager-core usr/share/applications/io.github.tcballard.TaskManager.desktop usr/share/licenses/omarchy-task-manager/LICENSE; do
+          for path in usr/bin/omarchy-task-manager usr/lib/omarchy-task-manager/omarchy-task-manager-core usr/share/applications/io.github.tcballard.TaskManager.desktop usr/share/licenses/omarchy-task-manager/LICENSE usr/lib/systemd/user/omarchy-task-manager-monitor.service; do
             grep -Fx "$path" dist/package-files.txt
           done
       - name: Fresh install, upgrade from v0.0.2, reinstall and remove
@@ -144,7 +159,7 @@ jobs:
             dist/namcap.txt
             dist/package-files.txt
   release:
-    name: Publish v0.0.4 preview
+    name: Publish v0.0.5 preview
     needs: [linux, arch-package]
     if: github.event_name == 'push' && github.ref == 'refs/heads/main' && github.repository == 'tcballard/omarchy-task-manager'
     runs-on: ubuntu-24.04
@@ -152,7 +167,7 @@ jobs:
     permissions:
       contents: write
     concurrency:
-      group: publish-v0.0.4
+      group: publish-v0.0.5
       cancel-in-progress: false
     steps:
       - uses: actions/checkout@v4
@@ -160,7 +175,7 @@ jobs:
         id: version
         run: |
           version=$(python3 -c 'import tomllib; print(tomllib.load(open("Cargo.toml", "rb"))["package"]["version"])')
-          if [ "$version" = "0.0.4" ]; then
+          if [ "$version" = "0.0.5" ]; then
             echo "publish=true" >> "$GITHUB_OUTPUT"
           fi
       - uses: actions/download-artifact@v4
@@ -175,18 +190,18 @@ jobs:
           GH_REPO: ${{ github.repository }}
         run: |
           set -euo pipefail
-          existing=$(gh api "repos/$GH_REPO/releases" --paginate --jq '.[] | select(.tag_name == "v0.0.4") | .html_url')
+          existing=$(gh api "repos/$GH_REPO/releases" --paginate --jq '.[] | select(.tag_name == "v0.0.5") | .html_url')
           if [ -n "$existing" ]; then
-            echo "Updating v0.0.4 release notes: $existing"
-            gh release edit v0.0.4 --notes-file RELEASE_NOTES.md
+            echo "Updating v0.0.5 release notes: $existing"
+            gh release edit v0.0.5 --notes-file RELEASE_NOTES.md
             exit 0
           fi
-          tags=$(gh api "repos/$GH_REPO/git/matching-refs/tags/v0.0.4" --jq '.[] | select(.ref == "refs/tags/v0.0.4") | .object.sha')
+          tags=$(gh api "repos/$GH_REPO/git/matching-refs/tags/v0.0.5" --jq '.[] | select(.ref == "refs/tags/v0.0.5") | .object.sha')
           if [ -n "$tags" ]; then
-            echo "Refusing to reuse an existing v0.0.4 tag without a release"
+            echo "Refusing to reuse an existing v0.0.5 tag without a release"
             exit 1
           fi
           (cd release-assets && sha256sum --check SHA256SUMS)
           grep -Fx "Commit: $GITHUB_SHA" release-assets/BUILD-INFO.txt
-          gh release create v0.0.4 release-assets/* --target "$GITHUB_SHA" --draft --prerelease --title "v0.0.4 — Beyond Edge" --notes-file RELEASE_NOTES.md
-          gh release edit v0.0.4 --draft=false
+          gh release create v0.0.5 release-assets/* --target "$GITHUB_SHA" --draft --prerelease --title "v0.0.5 — Recent history" --notes-file RELEASE_NOTES.md
+          gh release edit v0.0.5 --draft=false
