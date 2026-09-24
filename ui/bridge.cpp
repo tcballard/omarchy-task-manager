@@ -209,6 +209,10 @@ void Bridge::handleResponse(const QVariantMap &v) {
     rebuild();
     emit snapshotChanged();
     emit selectionChanged();
+    // Page data such as the process list follows the requested page. A reply
+    // for the previous page must not leave the new page empty until the next tick.
+    if (v.value("management_page").toString() != m_page)
+      QTimer::singleShot(0, this, &Bridge::refresh);
   } else if (kind == "inspection") {
     if (m_inspecting && m_inspectionPending) {
       m_inspection = v.value("data").toMap();

@@ -8,6 +8,27 @@
 class BridgeTest : public QObject {
   Q_OBJECT
 private slots:
+  void replyForPreviousPageRequestsCurrentPage() {
+    Bridge bridge;
+    QTRY_VERIFY_WITH_TIMEOUT(!bridge.snapshot().isEmpty(), 8000);
+    bridge.m_timer.stop();
+    bridge.setPage("summary");
+    QTRY_COMPARE_WITH_TIMEOUT(
+        bridge.snapshot().value("management_page").toString(),
+        QString("summary"), 8000);
+    QTRY_VERIFY_WITH_TIMEOUT(!bridge.busy(), 8000);
+    QVERIFY(!bridge.snapshot().contains("processes"));
+    // A summary reply lands after the user moved to Processes. With the timer
+    // stopped, only the page-mismatch refresh can fetch the process list.
+    const auto late = bridge.snapshot();
+    bridge.m_page = "processes";
+    bridge.handleResponse(late);
+    QTRY_COMPARE_WITH_TIMEOUT(
+        bridge.snapshot().value("management_page").toString(),
+        QString("processes"), 8000);
+    QVERIFY(!bridge.snapshot().value("processes").toList().isEmpty());
+    QVERIFY(!bridge.rows()->rows.isEmpty());
+  }
   void shutdownDoesNotPublish_data() {
     QTest::addColumn<bool>("inFlight");
     QTest::addColumn<bool>("stopped");
@@ -94,7 +115,10 @@ private slots:
     QCOMPARE(bridge.preference("width", 1120).toInt(), 1200);
     QTRY_VERIFY_WITH_TIMEOUT(!bridge.snapshot().isEmpty(), 8000);
     bridge.setPage("processes");
-    QVERIFY(bridge.rows()->rowCount() > 0);
+    // Rows arrive with the first processes-page reply when coming from a page
+    // whose snapshots omit the process list.
+    QTRY_VERIFY_WITH_TIMEOUT(bridge.rows()->rowCount() > 0, 8000);
+    QTRY_VERIFY_WITH_TIMEOUT(!bridge.busy(), 8000);
     const auto ownPid = QCoreApplication::applicationPid();
     // Search is substring-based across PID, command and other fields. A
     // matching first row is not necessarily this test process. Keep a decoy

@@ -36,7 +36,7 @@ impl History {
             .join("omarchy-task-manager/history.json");
         Self::at_path(path)
     }
-    fn at_path(path: PathBuf) -> Self {
+    pub(crate) fn at_path(path: PathBuf) -> Self {
         let loaded = (|| -> Result<Value, String> {
             let file = match fs::File::open(&path) {
                 Ok(file) => file,
