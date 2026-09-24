@@ -430,9 +430,12 @@ private slots:
 int main(int argc, char **argv) {
   qputenv("QT_QPA_PLATFORM", "offscreen");
   qputenv("QT_QUICK_BACKEND", "software");
-  QTemporaryDir config;
-  if (qEnvironmentVariable("TASK_MANAGER_LIVE_BACKGROUND") != "1")
+  QTemporaryDir config, runtime;
+  if (qEnvironmentVariable("TASK_MANAGER_LIVE_BACKGROUND") != "1") {
     qputenv("XDG_CONFIG_HOME", config.path().toUtf8());
+    // A developer's own collector or compositor must not feed test history.
+    qputenv("XDG_RUNTIME_DIR", runtime.path().toUtf8());
+  }
   qputenv("XDG_STATE_HOME", config.path().toUtf8());
   QGuiApplication app(argc, argv);
   app.setOrganizationName("task-manager-tests");

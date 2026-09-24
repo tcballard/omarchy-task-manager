@@ -188,9 +188,10 @@ private slots:
 };
 int main(int argc, char **argv) {
   QCoreApplication app(argc, argv);
-  QTemporaryDir config;
+  QTemporaryDir config, runtime;
   qputenv("XDG_CONFIG_HOME", config.path().toUtf8());
   qputenv("XDG_STATE_HOME", config.path().toUtf8());
+  qputenv("XDG_RUNTIME_DIR", runtime.path().toUtf8());
   app.setOrganizationName("task-manager-tests");
   app.setApplicationName("bridge");
   BridgeTest test;
