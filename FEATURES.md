@@ -1,6 +1,6 @@
 # Task Manager: Windows-to-Omarchy feature map
 
-Status: v0.0.5 preview; Summary is implemented on the current development branch as of 22 September 2026, pending live desktop acceptance. “Implemented” means executable code and UI exist; live desktop/hardware verification remains separate.
+Status: v0.1.0, the first non-preview release. The maintainer accepted the v0.0.5 application behaviour on the XPS and approved v0.1.0 on 24 September 2026, including Summary, background monitoring, logout/reboot startup and GPU readings. This release changes version labels and documentation, not application behaviour. Other hardware remains unverified; see VERIFICATION.md.
 
 | Familiar Windows capability | Omarchy implementation | Boundary |
 |---|---|---|

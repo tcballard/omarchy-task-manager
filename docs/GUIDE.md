@@ -8,7 +8,7 @@ For a fresh install without compiling, download the package and checksums from t
 [GitHub releases](https://github.com/tcballard/omarchy-task-manager/releases)
 and follow that release’s install commands. The same package upgrades an existing installation.
 
-The app was [published to Omarchy's edge repository](https://github.com/omacom/omarchy-pkgs/pull/579#issuecomment-5766245954) as **0.0.3-3** on 21 September 2026. If you already use edge, install with `sudo pacman -Syu omarchy-task-manager`. The repository package includes the pause/resume test and worker-shutdown fixes backported from app PRs #11 and #12. The original GitHub v0.0.3 package predates those fixes. v0.0.4 includes both fixes directly; its proposed promotion beyond Edge remains a separate upstream decision. A GitHub preview package does not change the package available on an Omarchy channel. See the [packaging handoff](OMARCHY_PACKAGING.md).
+The app was [published to Omarchy's edge repository](https://github.com/omacom/omarchy-pkgs/pull/579#issuecomment-5766245954) as **0.0.3-3** on 21 September 2026. If you already use edge, install with `sudo pacman -Syu omarchy-task-manager`. The repository package includes the pause/resume test and worker-shutdown fixes backported from app PRs #11 and #12. The original GitHub v0.0.3 package predates those fixes. v0.1.0 includes both fixes and the Summary/background monitoring additions; promotion beyond Edge remains a separate upstream decision. A GitHub release package does not change the package available on an Omarchy channel. See the [packaging handoff](OMARCHY_PACKAGING.md).
 
 Clone the repository and build as your normal user:
 
@@ -78,7 +78,7 @@ CPU percentages are normalized to total machine capacity. Application and user m
 
 The App history page records your processes grouped by executable only while the detailed UI worker samples. It is separate from the basic background graphs. Data is saved every 30 seconds and at normal exit. It cannot account for processes that start and exit entirely between samples. Per-app network traffic, Windows power-impact scores, boot-impact timings, UWP counters, and Windows wait-chain analysis have no direct implementation here.
 
-DRM GPU readings depend on exported driver counters and readable client file descriptors. Shared DRM clients are counted once; the process receiving that attribution may not be the only owner. Intel-style observed-client utilization is not guaranteed to be whole-device utilization. AMD device counters and optional NVIDIA counters are used where available. No GPU-equipped machine was available for acceptance in this workspace.
+DRM GPU readings depend on exported driver counters and readable client file descriptors. Shared DRM clients are counted once; the process receiving that attribution may not be the only owner. Intel-style observed-client utilization is not guaranteed to be whole-device utilization. AMD device counters and optional NVIDIA counters are used where available. The maintainer accepted GPU readings on his XPS for v0.1.0. Other hardware and driver combinations remain unverified.
 
 Applications are attributed through Hyprland windows and ancestry with shell/user boundaries. Flatpak, Wine, portals and shared helpers may require inspection through Processes; complete cgroup attribution is not claimed.
 
@@ -105,7 +105,7 @@ Actions in automated tests target disposable children and temporary startup file
 5. Compare CPU/RSS/disk/network/GPU over equivalent intervals with btop and driver tools. Test suspend/resume and device/network changes.
 6. Toggle a disposable XDG autostart entry and restore it. Create a disposable user service and test its lifecycle/logs. Confirm denied system-service actions show useful errors.
 7. Test session lock; test sign-out only after saving work. Test optional core dumps only on a disposable process. Verify history survives reopening and reset works.
-8. Build with `makepkg`, run `namcap`, install, upgrade and remove on the target. Preferences/history should remain. Remote CI, real systemd/session actions, Hyprland placement and hardware acceptance must be recorded before shipping v0.1.0. The v0.0.n previews are for testing while this acceptance remains incomplete.
+8. Build with `makepkg`, run `namcap`, install, upgrade and remove on the target. Preferences/history should remain. The v0.1.0 release combines automated package/systemd checks with maintainer-reported XPS acceptance. See [the verification record](../VERIFICATION.md) for its scope; this checklist remains useful for future changes and other hardware.
 
 ## Removal
 

@@ -45,10 +45,10 @@ Use disposable applications and unsaved test documents. These are target accepta
 
 Watch a first-time user attempt the frozen-spreadsheet scenario without coaching. Record time to identify the app, wrong turns and whether the confirmation made sense. CI proves specific behaviour; it does not prove usability or live hardware compatibility.
 
-## Priorities through v0.0.n
+## Release decision and continuing priorities
 
 First audit the current Applications page and close/force-quit flow against these scenarios. Close usability and safety gaps before expanding diagnostics. The existing v0.0.1 labels include Close window and Force quit; the desired End task journey above still needs an implementation review and live acceptance.
 
-Continue v0.0.n previews while iterating. v0.1.0 requires confidence in this everyday workflow as well as the documented packaging and live desktop acceptance. A longer feature checklist alone is not readiness.
+On 24 September 2026, the maintainer accepted the tested XPS behaviour and chose v0.1.0 as the first non-preview release. The existing close/force-quit wording and optional shortcut setup remain as documented; the desired End task simplification is a future improvement, not a new release blocker. Keep the acceptance scenarios above for future work. A longer feature checklist alone is not readiness.
 
 Change this direction when the maintainer explicitly changes the product goal, and record the reason in the PR. Do not rewrite acceptance criteria merely to describe whatever has already been built.

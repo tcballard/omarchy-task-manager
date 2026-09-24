@@ -470,7 +470,7 @@ ApplicationWindow {
                         PlainLabel {
                             visible: !root.sidebarCollapsed
                             objectName: "versionLabel"
-                            text: "v0.0.5 · Preview"
+                            text: "v0.1.0"
                             color: muted
                             font.pixelSize: root.fontSize("body-small", 11)
                             Layout.topMargin: 12

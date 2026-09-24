@@ -28,7 +28,7 @@ sudo pacman -Syu omarchy-task-manager
 
 Open **Task Manager** from the app launcher, or run `omarchy-task-manager`.
 
-The [edge package is live](https://github.com/omacom/omarchy-pkgs/pull/579#issuecomment-5766245954), but channel updates follow Omarchy’s separate publication process. For a newer preview, use the [GitHub release package](docs/GUIDE.md#build-and-run-on-omarchy).
+The [edge package is live](https://github.com/omacom/omarchy-pkgs/pull/579#issuecomment-5766245954), but channel updates follow Omarchy’s separate publication process. For the latest release, use the [GitHub release package](docs/GUIDE.md#build-and-run-on-omarchy).
 
 ### Keyboard shortcut
 
@@ -59,7 +59,7 @@ Removal keeps your preferences and history. Remove any shortcut you added separa
 
 ## A few useful details
 
-**v0.0.5 preview.** The earlier release was tested on my XPS; the Summary and background monitoring still need live acceptance. Refinement continues through v0.0.n before v0.1.0. Full desktop acceptance and GPU accuracy checks remain in the [verification record](VERIFICATION.md).
+**v0.1.0.** Tested on my XPS, including Summary, background monitoring after closing and reopening the window, startup after logout/reboot, and GPU readings. This is the first non-preview release. See the [verification record](VERIFICATION.md) for the scope of that testing and hardware limitations.
 
 Usage history stays local and is recorded while Task Manager is sampling. GPU readings depend on your driver; per-app network traffic isn't available. [Capabilities and limitations →](FEATURES.md)
 
