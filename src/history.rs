@@ -89,9 +89,10 @@ impl History {
             .iter()
             .filter(|p| p.uid == unsafe { libc::getuid() })
         {
-            let key = fs::read_link(format!("/proc/{}/exe", p.id.pid))
-                .map(|s| s.display().to_string())
-                .unwrap_or_else(|_| p.name.clone());
+            let key = p
+                .exe
+                .as_ref()
+                .map_or_else(|| p.name.clone(), |s| s.display().to_string());
             if self.rows.len() >= 4096 && !self.rows.contains_key(&key) {
                 continue;
             }
