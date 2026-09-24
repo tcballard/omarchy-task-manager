@@ -15,9 +15,9 @@ assert next(p["version"] for p in packages if p["name"] == "omarchy-task-manager
 expected = {
     "CMakeLists.txt": f"VERSION {version} LANGUAGES",
     "ui/main.cpp": f'app.setApplicationVersion("{version}")',
-    "ui/Main.qml": f"v{version} · Preview",
+    "ui/Main.qml": f'text: "v{version}"',
     "packaging/PKGBUILD": f"pkgver={version}\n",
-    "README.md": f"**v{version} preview.**",
+    "README.md": f"**v{version}.**",
     "RELEASE_NOTES.md": f"# v{version} —",
 }
 for path, marker in expected.items():

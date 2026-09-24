@@ -1,4 +1,14 @@
-# Verification — expanded v0.1.0 preview
+# v0.1.0 release acceptance
+
+On 24 September 2026, Tom confirmed that the outstanding XPS checks discussed for v0.0.5 were complete and looked good, and approved the first non-preview v0.1.0 release. These checks cover background monitoring startup after logout/reboot and GPU readings on his hardware, in addition to the previously accepted Summary and Super + W/reopen behaviour.
+
+This is maintainer-reported live acceptance of v0.0.5 (`a83b2db848d9784ecad8d772f245eb2307fc2c37`), not a new desktop test performed by the release-preparation environment. Exact installed OS/driver versions, per-step logs and fresh screenshots were not supplied. It does not establish compatibility with all Intel/AMD/NVIDIA devices, ARM, or completion of every historical exploratory check below.
+
+v0.1.0 preserves that application behaviour, changes version labels and release documentation, and publishes without the prerelease flag. Its release workflow requires fresh Ubuntu/Arch CI, package lifecycle checks and checksummed assets from the release commit. BUILD-INFO.txt identifies that commit and workflow run. The historical records below retain their original scope; later CI and the maintainer's acceptance above supersede their pending status only for the checks actually covered.
+
+---
+
+# Historical verification — expanded pre-release build
 
 > Historical record: this work used the planned v0.1.0 label. The first published preview is v0.0.1; we will iterate through v0.0.n before v0.1.0. Existing evidence and hashes describe their original inputs, not the release commit. Release CI supplies fresh build results and asset checksums.
 
