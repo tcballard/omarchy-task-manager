@@ -69,13 +69,15 @@ impl Gpu {
         for p in processes {
             let mut engines: BTreeMap<String, f64> = BTreeMap::new();
             let mut memory = None;
-            for f in fs::read_dir(format!("/proc/{}/fdinfo", p.id.pid))
+            for f in fs::read_dir(format!("/proc/{}/fd", p.id.pid))
                 .into_iter()
                 .flatten()
                 .filter_map(Result::ok)
                 .take(4096)
+                .filter(|f| drm_device(&f.path()))
             {
-                let Some(c) = fs::read_to_string(f.path()).ok().and_then(|s| parse(&s)) else {
+                let fdinfo = format!("/proc/{}/fdinfo/{}", p.id.pid, f.file_name().display());
+                let Some(c) = fs::read_to_string(fdinfo).ok().and_then(|s| parse(&s)) else {
                     continue;
                 };
                 let client = format!("{}:{}", c.device, c.id);
@@ -153,6 +155,14 @@ impl Gpu {
         devices
     }
 }
+/// Only DRM (226) and compute-accelerator (261) character devices publish
+/// drm-* fdinfo. One stat per descriptor replaces opening and parsing the
+/// fdinfo of every socket, pipe and file on the system each sample.
+fn drm_device(fd: &std::path::Path) -> bool {
+    use std::os::unix::fs::{FileTypeExt, MetadataExt};
+    fs::metadata(fd)
+        .is_ok_and(|m| m.file_type().is_char_device() && matches!(libc::major(m.rdev()), 226 | 261))
+}
 fn engine_usage(now: u64, old: Option<u64>, seconds: Option<f64>, capacity: u64) -> Option<f64> {
     crate::metrics::delta(now, old?, seconds?)
         .map(|rate| 100.0 * rate / (1e9 * capacity.max(1) as f64))
@@ -203,6 +213,34 @@ mod tests {
             Some(25.0)
         );
         assert_eq!(engine_usage(1000, Some(100), None, 1), None);
+    }
+    #[test]
+    fn only_drm_descriptors_are_inspected() {
+        let null = fs::File::open("/dev/null").unwrap();
+        let file = fs::File::open("/proc/self/stat").unwrap();
+        for f in [&null, &file] {
+            use std::os::fd::AsRawFd;
+            assert!(!drm_device(std::path::Path::new(&format!(
+                "/proc/self/fd/{}",
+                f.as_raw_fd()
+            ))));
+        }
+        assert!(!drm_device(std::path::Path::new("/proc/self/fd/-1")));
+        // Portable CI has no GPU; exercise a real render node where one exists.
+        if let Some(node) = fs::read_dir("/dev/dri")
+            .into_iter()
+            .flatten()
+            .flatten()
+            .find(|e| e.file_name().to_string_lossy().starts_with("renderD"))
+        {
+            if let Ok(render) = fs::File::open(node.path()) {
+                use std::os::fd::AsRawFd;
+                assert!(drm_device(std::path::Path::new(&format!(
+                    "/proc/self/fd/{}",
+                    render.as_raw_fd()
+                ))));
+            }
+        }
     }
     #[test]
     fn drm_units_and_capacity() {
