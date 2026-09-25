@@ -34,6 +34,9 @@ pub struct Process {
     pub cpu_seconds: f64,
     pub gpu: Option<f64>,
     pub gpu_memory: Option<u64>,
+    /// Executable resolved once per read; reused for protection and history.
+    #[serde(skip)]
+    pub exe: Option<std::path::PathBuf>,
 }
 fn number<T: std::str::FromStr>(s: &str) -> io::Result<T> {
     s.parse()
@@ -57,9 +60,11 @@ pub fn read_one(pid: i32) -> io::Result<Process> {
     let base = format!("/proc/{pid}");
     let stat = fs::read_to_string(format!("{base}/stat"))?;
     let (comm, f) = parse_stat(&stat)?;
-    let name = fs::read_link(format!("{base}/exe"))
-        .ok()
-        .and_then(|p| p.file_name().map(|n| n.to_string_lossy().into_owned()))
+    let exe = fs::read_link(format!("{base}/exe")).ok();
+    let name = exe
+        .as_deref()
+        .and_then(Path::file_name)
+        .map(|n| n.to_string_lossy().into_owned())
         .unwrap_or(comm);
     let status = fs::read_to_string(format!("{base}/status"))?;
     let uid = status
@@ -99,6 +104,7 @@ pub fn read_one(pid: i32) -> io::Result<Process> {
         protected: false,
         gpu: None,
         gpu_memory: None,
+        exe,
         nice: number(f[16])?,
         threads: number(f[17])?,
         virtual_memory: number(f[20])?,
@@ -133,8 +139,8 @@ pub fn list() -> Vec<Process> {
     v
 }
 fn critical(p: &Process) -> bool {
-    let exe = fs::read_link(format!("/proc/{}/exe", p.id.pid)).ok();
-    let name = exe
+    let name = p
+        .exe
         .as_deref()
         .and_then(Path::file_name)
         .and_then(|s| s.to_str())
@@ -351,6 +357,19 @@ mod tests {
         assert!(result.contains("thread exited"));
         assert!(result.contains("permission denied"));
         assert!(tune_each(Vec::<Result<(), String>>::new(), |_| Ok(())).is_err());
+    }
+    #[test]
+    fn protection_uses_the_executable_resolved_with_the_process() {
+        let mut p = read_one(std::process::id() as i32).unwrap();
+        assert_eq!(p.exe, fs::read_link("/proc/self/exe").ok());
+        p.id.pid = i32::MAX; // Only the resolved executable can make it critical.
+        p.name = "renamed".into();
+        p.exe = Some("/usr/bin/Hyprland".into());
+        assert!(critical(&p));
+        p.exe = None; // Unreadable executable falls back to the process name.
+        assert!(!critical(&p));
+        p.name = "systemd".into();
+        assert!(critical(&p));
     }
     #[test]
     fn names_can_contain_parentheses() {

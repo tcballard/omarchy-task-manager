@@ -167,7 +167,15 @@ fn snapshot(
             }
         }
     }
-    json!({"kind":"snapshot","system":system,"processes":processes,"apps":apps,"desktop_error":windows.err(),"theme":desktop::theme(),"uid":unsafe{libc::getuid()},"management_page":page,"management":cache.2,"usage":history.view()})
+    let mut value = json!({"kind":"snapshot","system":system,"apps":apps,"desktop_error":windows.err(),"theme":desktop::theme(),"uid":unsafe{libc::getuid()},"management_page":page,"management":cache.2,"usage":history.view()});
+    // The full process list is most of each response; send it only to pages that show it.
+    if process_list_page(page) {
+        value["processes"] = json!(processes);
+    }
+    value
+}
+fn process_list_page(page: &str) -> bool {
+    matches!(page, "apps" | "processes")
 }
 fn action(req: &Value, history: &mut history::History, desktop: &desktop::Desktop) -> Value {
     let result: Result<String, String> = match req["category"].as_str().unwrap_or("") {
@@ -264,6 +272,26 @@ mod protocol_tests {
         assert_eq!(rows.len(), 2);
         assert_eq!(rows[0]["kind"], "error");
         assert_eq!(rows[1]["kind"], "snapshot");
+    }
+    #[test]
+    fn process_list_is_sent_only_to_pages_that_show_it() {
+        let mut sampler = metrics::Sampler::new();
+        let desktop = desktop::Desktop::new();
+        let dir = std::env::temp_dir().join(format!("task-manager-pages-{}", std::process::id()));
+        std::fs::create_dir_all(&dir).unwrap();
+        let mut history = history::History::at_path(dir.join("history.json"));
+        let mut cache = (String::new(), std::time::Instant::now(), json!({}));
+        for page in ["apps", "processes"] {
+            let value = snapshot(&mut sampler, &desktop, &mut history, &mut cache, page);
+            assert!(!value["processes"].as_array().unwrap().is_empty());
+        }
+        for page in ["summary", "performance", "history"] {
+            let value = snapshot(&mut sampler, &desktop, &mut history, &mut cache, page);
+            assert!(value.get("processes").is_none());
+            assert!(value["system"]["process_count"].as_u64().unwrap() > 0);
+        }
+        drop(history);
+        std::fs::remove_dir_all(dir).unwrap();
     }
     #[test]
     fn line_limit_applies_before_allocating_entire_request() {

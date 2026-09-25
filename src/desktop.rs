@@ -423,6 +423,7 @@ mod tests {
             read_rate: None,
             write_rate: None,
             protected: false,
+            exe: None,
             gpu: None,
             gpu_memory: None,
             nice: 0,
