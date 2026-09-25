@@ -1,6 +1,6 @@
 # Task Manager: Windows-to-Omarchy feature map
 
-Status: v0.1.0, the first non-preview release. The maintainer accepted the v0.0.5 application behaviour on the XPS and approved v0.1.0 on 24 September 2026, including Summary, background monitoring, logout/reboot startup and GPU readings. This release changes version labels and documentation, not application behaviour. Other hardware remains unverified; see VERIFICATION.md.
+Status: v0.1.1, the first maintenance release after v0.1.0. It reduces GPU polling and per-page snapshot cost and isolates the Qt tests from a running monitor. The maintainer accepted the v0.0.5 application behaviour on the XPS and approved v0.1.0 on 24 September 2026, including Summary, background monitoring, logout/reboot startup and GPU readings. The v0.1.1 changes have not yet had XPS acceptance. Other hardware remains unverified; see VERIFICATION.md and RELEASE_NOTES.md.
 
 | Familiar Windows capability | Omarchy implementation | Boundary |
 |---|---|---|

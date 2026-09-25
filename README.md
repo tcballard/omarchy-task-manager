@@ -59,7 +59,7 @@ Removal keeps your preferences and history. Remove any shortcut you added separa
 
 ## A few useful details
 
-**v0.1.0.** Tested on my XPS, including Summary, background monitoring after closing and reopening the window, startup after logout/reboot, and GPU readings. This is the first non-preview release. See the [verification record](VERIFICATION.md) for the scope of that testing and hardware limitations.
+**v0.1.1.** This update reduces sampling overhead, sends the full process list only to pages that use it, and isolates Qt tests from your live monitor. The v0.1.0 application was tested on my XPS, including Summary, background monitoring after closing and reopening the window, startup after logout/reboot, and GPU readings. The v0.1.1 changes have not yet been checked on that XPS; see the [verification record](VERIFICATION.md) and [release notes](RELEASE_NOTES.md) for the scope.
 
 Usage history stays local and is recorded while Task Manager is sampling. GPU readings depend on your driver; per-app network traffic isn't available. [Capabilities and limitations →](FEATURES.md)
 
