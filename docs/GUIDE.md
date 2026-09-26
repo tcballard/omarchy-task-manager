@@ -4,11 +4,13 @@
 
 ## Build and run on Omarchy
 
-For a fresh install without compiling, download the package and checksums from the
-[GitHub releases](https://github.com/tcballard/omarchy-task-manager/releases)
-and follow that release’s install commands. The same package upgrades an existing installation.
+For a fresh install or upgrade on **Omarchy x86_64**, use the official package on Stable, RC or Edge:
 
-The app was [published to Omarchy's edge repository](https://github.com/omacom/omarchy-pkgs/pull/579#issuecomment-5766245954) as **0.0.3-3** on 21 September 2026. If you already use edge, install with `sudo pacman -Syu omarchy-task-manager`. The repository package includes the pause/resume test and worker-shutdown fixes backported from app PRs #11 and #12. The original GitHub v0.0.3 package predates those fixes. v0.1.0 includes both fixes and the Summary/background monitoring additions; promotion beyond Edge remains a separate upstream decision. A GitHub release package does not change the package available on an Omarchy channel. See the [packaging handoff](OMARCHY_PACKAGING.md).
+```bash
+sudo pacman -Syu omarchy-task-manager
+```
+
+[Omarchy published version 0.1.1-1 to all three channels](https://github.com/omacom/omarchy-pkgs/pull/594#issuecomment-5838328794) on 25 September 2026. The [GitHub v0.1.1 release](https://github.com/tcballard/omarchy-task-manager/releases/tag/v0.1.1) offers a checksummed package for manual installation if needed. See the [packaging record](OMARCHY_PACKAGING.md).
 
 Clone the repository and build as your normal user:
 

@@ -20,7 +20,7 @@ The screenshot above is from my XPS running Omarchy with the Familiar theme, cap
 
 ## Install
 
-For **Omarchy on x86_64, using the edge package channel**:
+For **Omarchy on x86_64**, Task Manager v0.1.1 is available through the Stable, RC and Edge package channels:
 
 ```bash
 sudo pacman -Syu omarchy-task-manager
@@ -28,7 +28,7 @@ sudo pacman -Syu omarchy-task-manager
 
 Open **Task Manager** from the app launcher, or run `omarchy-task-manager`.
 
-The [edge package is live](https://github.com/omacom/omarchy-pkgs/pull/579#issuecomment-5766245954), but channel updates follow Omarchy’s separate publication process. For the latest release, use the [GitHub release package](docs/GUIDE.md#build-and-run-on-omarchy).
+[Omarchy published 0.1.1-1 to all three channels](https://github.com/omacom/omarchy-pkgs/pull/594#issuecomment-5838328794) on 25 September 2026. The [GitHub release](https://github.com/tcballard/omarchy-task-manager/releases/tag/v0.1.1) also offers a package and checksums for manual installation.
 
 ### Keyboard shortcut
 
@@ -42,7 +42,7 @@ Use **Ctrl + F** to search, **Ctrl + N** to run a new task, and **Esc** to close
 
 ## Update and remove
 
-On edge, updates arrive with your normal system updates:
+Updates arrive with your normal system updates:
 
 ```bash
 sudo pacman -Syu

@@ -8,7 +8,13 @@ Task Manager should help when the desktop is slow, not add to the load. This mai
 
 ## Install or upgrade
 
-Download the [x86_64 package](https://github.com/tcballard/omarchy-task-manager/releases/download/v0.1.1/omarchy-task-manager-0.1.1-1-x86_64.pkg.tar.zst) and [SHA256SUMS](https://github.com/tcballard/omarchy-task-manager/releases/download/v0.1.1/SHA256SUMS) into the same directory, then run:
+On Omarchy x86_64, install or upgrade from the Stable, RC or Edge package channel:
+
+```bash
+sudo pacman -Syu omarchy-task-manager
+```
+
+[Version 0.1.1-1 is live in all three channels](https://github.com/omacom/omarchy-pkgs/pull/594#issuecomment-5838328794). Alternatively, download the [x86_64 GitHub release package](https://github.com/tcballard/omarchy-task-manager/releases/download/v0.1.1/omarchy-task-manager-0.1.1-1-x86_64.pkg.tar.zst) and [SHA256SUMS](https://github.com/tcballard/omarchy-task-manager/releases/download/v0.1.1/SHA256SUMS) into the same directory for manual installation:
 
 ```bash
 sha256sum --ignore-missing --check SHA256SUMS &&
@@ -17,7 +23,7 @@ sudo pacman -U ./omarchy-task-manager-0.1.1-1-x86_64.pkg.tar.zst
 
 Open **Task Manager** from the launcher. [Super + Alt + Delete](https://github.com/tcballard/omarchy-task-manager/blob/v0.1.1/docs/GUIDE.md#keyboard-shortcut) is an optional one-time shortcut setup.
 
-The [Omarchy package PR](https://github.com/omacom/omarchy-pkgs/pull/594) handles channel updates separately. `sudo pacman -Syu omarchy-task-manager` installs whichever version your channel publishes; the GitHub release does not itself promote a package to Edge, RC or Stable.
+The [Omarchy package PR](https://github.com/omacom/omarchy-pkgs/pull/594) merged and its [publication run](https://github.com/omacom/omarchy-pkgs/actions/runs/36179238474) succeeded on 25 September 2026. Normal system updates now deliver this version from the selected channel.
 
 ## Verification and limits
 
