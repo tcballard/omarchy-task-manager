@@ -6,6 +6,7 @@
 #include <QProcess>
 #include <QQmlApplicationEngine>
 #include <QQmlContext>
+#include <QJSEngine>
 #include <QQuickItem>
 #include <QQuickWindow>
 #include <QTemporaryDir>
@@ -19,6 +20,17 @@ static QQuickItem *visualItem(QQuickItem *root, const QString &name) {
 class UiTest : public QObject {
   Q_OBJECT
 private slots:
+  void sustainedLoadSummary() {
+    QFile implementation(":/ui/LoadSummary.js");
+    QFile scenarios(":/tests/load_summary.js");
+    QVERIFY(implementation.open(QIODevice::ReadOnly));
+    QVERIFY(scenarios.open(QIODevice::ReadOnly));
+    QString source = QString::fromUtf8(implementation.readAll());
+    source.remove(".pragma library");
+    QJSEngine engine;
+    auto result = engine.evaluate(source + "\n" + QString::fromUtf8(scenarios.readAll()));
+    QVERIFY2(!result.isError(), qPrintable(result.toString()));
+  }
   void iconsWithMissingDesktopTheme() {
     QTemporaryDir directory;
     QVERIFY(directory.isValid());
@@ -216,6 +228,14 @@ private slots:
     auto all = window->findChild<QQuickItem *>("summaryViewAllButton");
     QVERIFY(summary && all);
     QVERIFY(summary->isVisible());
+    auto explanation = window->findChild<QObject *>("summaryLoadExplanation");
+    QVERIFY(explanation);
+    backend.setPaused(true);
+    QTRY_VERIFY(explanation->property("text").toString().startsWith("Monitoring is paused"));
+    backend.setPaused(false);
+    // Old pre-pause history must not immediately restore a conclusion.
+    QVERIFY(explanation->property("text").toString().startsWith("Waiting for fresh"));
+    QTRY_VERIFY_WITH_TIMEOUT(!explanation->property("text").toString().startsWith("Waiting for fresh"), 8000);
     QTest::mouseClick(window, Qt::LeftButton, Qt::NoModifier,
                       all->mapToScene(QPointF(all->width() / 2,
                                                all->height() / 2)).toPoint());
