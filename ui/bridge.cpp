@@ -163,9 +163,9 @@ void Bridge::handleResponse(const QVariantMap &v) {
         {"cpu",
          cpus.isEmpty() ? QVariant() : cpus.first().toMap().value("usage")},
         {"memory", mem.value("total").toDouble() > 0
-                       ? 100 * mem.value("used").toDouble() /
-                             mem.value("total").toDouble()
-                       : 0}};
+                       ? QVariant(100 * mem.value("used").toDouble() /
+                             mem.value("total").toDouble())
+                       : QVariant()}};
     for (const QString &category : {QString("network"), QString("disks")}) {
       for (const auto &device : sys.value(category).toList()) {
         const auto d = device.toMap();

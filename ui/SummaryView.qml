@@ -1,6 +1,7 @@
 import QtQuick
 import QtQuick.Controls
 import QtQuick.Layouts
+import "LoadSummary.js" as LoadSummary
 
 Item {
     id: summary
@@ -26,9 +27,49 @@ Item {
     function percent(value) { return backend.percent(value); }
     function bytes(value) { return backend.bytes(value); }
 
+    property double receivedAt: 0
+    property double checkedAt: Date.now()
+    property bool awaitingSample: true
+    onHistoryChanged: {
+        receivedAt = Date.now();
+        checkedAt = receivedAt;
+        awaitingSample = false;
+    }
+    Connections {
+        target: backend
+        function onPreferencesChanged() {
+            if (backend.paused)
+                summary.awaitingSample = true;
+        }
+    }
+    Timer {
+        interval: 1000
+        running: true
+        repeat: true
+        onTriggered: summary.checkedAt = Date.now()
+    }
+    property string loadExplanation: LoadSummary.explain(
+        history, backend.paused,
+        !awaitingSample && receivedAt > 0 && checkedAt >= receivedAt &&
+            checkedAt - receivedAt <= Math.max(3000, backend.interval * 2),
+        Math.max(3000, backend.interval * 2))
+
     ColumnLayout {
         anchors.fill: parent
         spacing: 8 * summary.textScale
+        PlainLabel {
+            Layout.fillWidth: true
+            text: "What’s slowing things down?"
+            font.bold: true
+            color: summary.fg
+        }
+        PlainLabel {
+            objectName: "summaryLoadExplanation"
+            Layout.fillWidth: true
+            text: summary.loadExplanation
+            color: summary.muted
+            wrapMode: Text.WordWrap
+        }
         RowLayout {
             Layout.fillWidth: true
             Layout.minimumHeight: 36
