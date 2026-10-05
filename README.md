@@ -4,9 +4,9 @@
   <a href="https://github.com/tcballard/omarchy-badges"><img src="https://raw.githubusercontent.com/tcballard/omarchy-badges/75975e5b5bf75e7ede3764bcd2950046f7abfe2c/badges/v1/omarchy-app.svg" alt="Built for Omarchy: App" height="24"></a>
 </p>
 
-**Find the frozen app. Get back to work.**
+<p align="center"><strong>Find the frozen app. Get back to work.</strong></p>
 
-A graphical task manager for seeing what's running, finding what's slowing your computer down, and closing an app that won't cooperate. Familiar controls in a native, mouse-friendly floating window, with keyboard support and your Omarchy colours and fonts.
+A native desktop task manager for Omarchy: find an application by name, check its resource use, and close it from a familiar, mouse-friendly window. Built for people who want to get back to work without learning Linux process tools, with keyboard support and your Omarchy colours and fonts. This is a standalone desktop app, not a shell plugin.
 
 ![Task Manager running on my XPS with the Familiar theme, showing applications and resource usage](docs/screenshots/task-manager-familiar.png)
 
@@ -17,6 +17,12 @@ I built this because moving from Windows shouldn't mean relearning how to find a
 Start on Summary to see running applications and compact CPU and memory history, then find an app by name, check its use, and request a normal close. If it won't close, **Force quit** is available with confirmation; unsaved work may be lost. Performance graphs, startup apps, services and process details are there when you need to look deeper.
 
 The screenshot above is from my XPS running Omarchy with the Familiar theme, captured on 21 September 2026.
+
+### Which Task Manager?
+
+This is **Task Manager for Omarchy**, maintained by **Tom Ballard** and installed as `omarchy-task-manager`. It provides a native graphical window with application controls, resource graphs and a normal-close-before-force-quit workflow.
+
+[serverbauer's Omarchy Task Manager](https://github.com/serverbauer/omarchy-taskmanager) is a separate project: its README describes a keyboard-driven, `fzf`-based process/window picker with kill and restart actions. The names are similar, but these are different applications with different interaction styles.
 
 ## Install
 
