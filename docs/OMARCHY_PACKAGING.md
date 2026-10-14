@@ -1,3 +1,11 @@
+# Current packaging policy
+
+Follow the [channel-aware release checklist](RELEASE_CHECKLIST.md) for v0.1.2 and later. [Upstream #904](https://github.com/omacom/omarchy-pkgs/pull/904) removed this source-built Qt app from the fast ring on 14 October 2026. The local metadata now omits `release_ring`; do not restore it.
+
+The record below describes the superseded September policy and completed v0.1.1 release, not instructions for the next release.
+
+---
+
 # Omarchy packaging for v0.1.1
 
 Task Manager was published to Edge as `0.0.3-3` through [omarchy-pkgs PR #579](https://github.com/omacom/omarchy-pkgs/pull/579). The maintainer accepted v0.1.0 as the first non-preview release on 24 September 2026 and requested the v0.1.1 fixes followed by an update to the existing promotion PR #594.
@@ -10,7 +18,7 @@ Reviewed `omacom/omarchy-pkgs` at `77212489259697324f331eeefe735848fdc552f9`, in
 
 - Release `0.1.1-1` under the existing `omarchy-task-manager` package name, for x86_64.
 - Include the pause/resume and worker-shutdown fixes from app PRs #11 and #12 directly. Remove their downstream patches when updating the upstream recipe.
-- Remove `channels: ["edge"]` and set `release_ring: "fast"`. Current `bin/build-matrix` then selects `edge rc stable`; the current CI publishing workflow publishes one tested artifact to all eligible channels. The README's separate-per-channel-build description refers to the host path and does not describe this CI path.
+- Historical change: remove `channels: ["edge"]` and set `release_ring: "fast"`. Current `bin/build-matrix` then selects `edge rc stable`; the current CI publishing workflow publishes one tested artifact to all eligible channels. The README's separate-per-channel-build description refers to the host path and does not describe this CI path.
 - Retain the declarative GitHub watch and `allow_prerelease: true`. The historical preview watch remains enabled; v0.1.1 itself is a regular release.
 - Build from the published versioned source archive, pinned by SHA-256. The template is `packaging/PKGBUILD`; its placeholder must be replaced by `scripts/package-source.sh`.
 - Keep package ownership under `/usr`, optional gdb/NVIDIA dependencies, user preferences/history and personal bindings unchanged. The package includes the existing systemd user monitoring service introduced in v0.0.5. First normal launch enables it; no install hook or root service is added.
