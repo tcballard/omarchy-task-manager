@@ -1,5 +1,13 @@
 name: Build and test
-on: [push, pull_request, workflow_dispatch]
+on:
+  push:
+  pull_request:
+  workflow_dispatch:
+    inputs:
+      publish_release:
+        description: Publish v0.1.2 after completing the release checklist
+        type: boolean
+        default: false
 permissions:
   contents: read
 jobs:
@@ -14,6 +22,8 @@ jobs:
       - run: rustup toolchain install 1.98.1 --profile minimal --component clippy --component rustfmt
       - run: python3 tests/release_metadata.py
       - run: python3 tests/packaging.py
+      - name: Test guarded installation and rollback without host changes
+        run: bash tests/test-install.sh
       - run: cargo fmt --check && cargo clippy --locked --all-targets -- -D warnings && cargo test --locked
       - run: cmake -S . -B build -G Ninja -DCMAKE_BUILD_TYPE=Release && cmake --build build
       - run: desktop-file-validate packaging/io.github.tcballard.TaskManager.desktop
@@ -143,9 +153,14 @@ jobs:
       - name: Checksum release assets
         shell: bash
         run: |
+          set -euo pipefail
           printf 'Commit: %s\nWorkflow run: %s\n' "$GITHUB_SHA" "$GITHUB_RUN_ID" > dist/BUILD-INFO.txt
+          printf 'Build target: rolling Arch CI (not an Omarchy channel snapshot)\nArchitecture: %s\n' "$(uname -m)" >> dist/BUILD-INFO.txt
+          pacman -Q qt6-base qt6-declarative qt6-wayland qt6-svg glibc gcc-libs >> dist/BUILD-INFO.txt
+          packages=(dist/omarchy-task-manager-[0-9]*.pkg.tar.zst)
+          bsdtar -xOf "${packages[0]}" .BUILDINFO > dist/PACKAGE-BUILDINFO.txt
           cd dist
-          sha256sum omarchy-task-manager-*.pkg.tar.zst omarchy-task-manager-*.tar.gz PKGBUILD BUILD-INFO.txt namcap.txt package-files.txt > SHA256SUMS
+          sha256sum omarchy-task-manager-*.pkg.tar.zst omarchy-task-manager-*.tar.gz PKGBUILD BUILD-INFO.txt PACKAGE-BUILDINFO.txt namcap.txt package-files.txt > SHA256SUMS
       - uses: actions/upload-artifact@v4
         with:
           name: arch-development-package
@@ -155,19 +170,20 @@ jobs:
             dist/*.tar.gz
             dist/PKGBUILD
             dist/BUILD-INFO.txt
+            dist/PACKAGE-BUILDINFO.txt
             dist/SHA256SUMS
             dist/namcap.txt
             dist/package-files.txt
   release:
-    name: Publish v0.1.1
+    name: Publish v0.1.2
     needs: [linux, arch-package]
-    if: github.event_name == 'push' && github.ref == 'refs/heads/main' && github.repository == 'tcballard/omarchy-task-manager'
+    if: github.event_name == 'workflow_dispatch' && inputs.publish_release && github.ref == 'refs/heads/main' && github.repository == 'tcballard/omarchy-task-manager'
     runs-on: ubuntu-24.04
     timeout-minutes: 5
     permissions:
       contents: write
     concurrency:
-      group: publish-v0.1.1
+      group: publish-v0.1.2
       cancel-in-progress: false
     steps:
       - uses: actions/checkout@v4
@@ -175,7 +191,7 @@ jobs:
         id: version
         run: |
           version=$(python3 -c 'import tomllib; print(tomllib.load(open("Cargo.toml", "rb"))["package"]["version"])')
-          if [ "$version" = "0.1.1" ]; then
+          if [ "$version" = "0.1.2" ]; then
             echo "publish=true" >> "$GITHUB_OUTPUT"
           fi
       - uses: actions/download-artifact@v4
@@ -190,18 +206,17 @@ jobs:
           GH_REPO: ${{ github.repository }}
         run: |
           set -euo pipefail
-          existing=$(gh api "repos/$GH_REPO/releases" --paginate --jq '.[] | select(.tag_name == "v0.1.1") | .html_url')
+          existing=$(gh api "repos/$GH_REPO/releases" --paginate --jq '.[] | select(.tag_name == "v0.1.2") | .html_url')
           if [ -n "$existing" ]; then
-            echo "Updating v0.1.1 release notes: $existing"
-            gh release edit v0.1.1 --notes-file RELEASE_NOTES.md
+            echo "Release already exists; refusing to rewrite it: $existing"
             exit 0
           fi
-          tags=$(gh api "repos/$GH_REPO/git/matching-refs/tags/v0.1.1" --jq '.[] | select(.ref == "refs/tags/v0.1.1") | .object.sha')
+          tags=$(gh api "repos/$GH_REPO/git/matching-refs/tags/v0.1.2" --jq '.[] | select(.ref == "refs/tags/v0.1.2") | .object.sha')
           if [ -n "$tags" ]; then
-            echo "Refusing to reuse an existing v0.1.1 tag without a release"
+            echo "Refusing to reuse an existing v0.1.2 tag without a release"
             exit 1
           fi
           (cd release-assets && sha256sum --check SHA256SUMS)
           grep -Fx "Commit: $GITHUB_SHA" release-assets/BUILD-INFO.txt
-          gh release create v0.1.1 release-assets/* --target "$GITHUB_SHA" --draft --title "v0.1.1 — Less overhead when your computer is slow" --notes-file RELEASE_NOTES.md
-          gh release edit v0.1.1 --draft=false --prerelease=false --latest
+          gh release create v0.1.2 release-assets/* --target "$GITHUB_SHA" --draft --title "v0.1.2 — Understand sustained CPU and memory use" --notes-file RELEASE_NOTES.md
+          gh release edit v0.1.2 --draft=false --prerelease=false --latest

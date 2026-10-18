@@ -1,7 +1,7 @@
 <h1 align="center">Task Manager for Omarchy</h1>
 
 <p align="center">
-  <a href="https://github.com/tcballard/omarchy-badges"><img src="https://raw.githubusercontent.com/tcballard/omarchy-badges/75975e5b5bf75e7ede3764bcd2950046f7abfe2c/badges/v1/omarchy-app.svg" alt="Built for Omarchy: App" height="24"></a>
+  <a href="https://github.com/tcballard/omarchy-badges"><img src="https://raw.githubusercontent.com/tcballard/omarchy-badges/75975e5b5bf75e7ede3764bcd2950046f7abfe2c/badges/v1/omarchy-app.svg" alt="Built for Omarchy: App" height="20"></a>
 </p>
 
 <p align="center"><strong>Find the frozen app. Get back to work.</strong></p>
@@ -26,7 +26,7 @@ This is **Task Manager for Omarchy**, maintained by **Tom Ballard** and installe
 
 ## Install
 
-For **Omarchy on x86_64**, Task Manager v0.1.1 is available through the Stable, RC and Edge package channels:
+For **Omarchy on x86_64**, install the version available in your selected package channel:
 
 ```bash
 sudo pacman -Syu omarchy-task-manager
@@ -35,6 +35,10 @@ sudo pacman -Syu omarchy-task-manager
 Open **Task Manager** from the app launcher, or run `omarchy-task-manager`.
 
 [Omarchy published 0.1.1-1 to all three channels](https://github.com/omacom/omarchy-pkgs/pull/594#issuecomment-5838328794) on 25 September 2026. The [GitHub release](https://github.com/tcballard/omarchy-task-manager/releases/tag/v0.1.1) also offers a package and checksums for manual installation.
+
+v0.1.2 is in preparation. New versions reach **Edge → RC → Stable** with compatible libraries; a GitHub release does not mean every channel has it. See the [release checklist and channel status](docs/RELEASE_CHECKLIST.md).
+
+For the unpublished **v0.1.2 XPS test build**, use the [guarded test installer](docs/TESTING-0.1.2.md). It verifies the exact CI artifact, checks the installed Qt/runtime, and saves a local rollback before changing the package. It stops if this rolling Arch binary cannot run on your current snapshot.
 
 ### Keyboard shortcut
 
@@ -65,7 +69,7 @@ Removal keeps your preferences and history. Remove any shortcut you added separa
 
 ## A few useful details
 
-**v0.1.1.** This update reduces sampling overhead, sends the full process list only to pages that use it, and isolates Qt tests from your live monitor. The v0.1.0 application was tested on my XPS, including Summary, background monitoring after closing and reopening the window, startup after logout/reboot, and GPU readings. The v0.1.1 changes have not yet been checked on that XPS; see the [verification record](VERIFICATION.md) and [release notes](RELEASE_NOTES.md) for the scope.
+**v0.1.2.** In preparation: Summary explains sustained high CPU or memory readings and points you towards running applications without blaming or closing one automatically. Release preparation now tracks package channels and their library snapshots separately. The v0.1.0 application was tested on my XPS, including Summary, background monitoring after closing and reopening the window, startup after logout/reboot, and GPU readings. The v0.1.1 changes have not yet been checked on that XPS; see the [verification record](VERIFICATION.md) and [release notes](RELEASE_NOTES.md) for the scope.
 
 Usage history stays local and is recorded while Task Manager is sampling. GPU readings depend on your driver; per-app network traffic isn't available. [Capabilities and limitations →](FEATURES.md)
 

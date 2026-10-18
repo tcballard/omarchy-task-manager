@@ -41,7 +41,8 @@ with tarfile.open(dist / f"{name}-omarchy-pkgs.tar.gz") as archive:
     assert set(files) == {prefix + "PKGBUILD", prefix + ".omarchy/package.json"}
     assert archive.extractfile(prefix + "PKGBUILD").read().decode() == recipe
     metadata = json.load(archive.extractfile(prefix + ".omarchy/package.json"))
-    assert metadata["source"] == "local" and metadata["release_ring"] == "fast"
+    assert metadata["source"] == "local"
+    assert "release_ring" not in metadata, "Source-built Qt app must follow normal promotion"
     assert "channels" not in metadata, "An edge-only pin would block RC/stable publication"
     watch = metadata["upstream"]["watch"]
     assert watch["github"] == "tcballard/omarchy-task-manager"

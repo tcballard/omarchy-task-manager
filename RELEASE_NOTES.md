@@ -1,42 +1,50 @@
-# v0.1.1 — Less overhead when your computer is slow
+# v0.1.2 — Understand sustained CPU and memory use
 
-Task Manager should help when the desktop is slow, not add to the load. This maintenance release reduces the cost of sampling and sending data while preserving the familiar Summary and safe close/force-quit flow.
+**Prepared for release; not yet published.**
 
-- **Sample GPU clients more cheaply.** Only DRM and accelerator descriptors are read for GPU attribution. On NVIDIA desktops, one bounded, supervised `nvidia-smi` stream replaces a new process every sample. On the contributor's RTX 3080 desktop, measured worker plus child CPU fell from about 12% to 3% of one core with the window open at the default one-second interval. This is a measurement on that machine, not an all-hardware guarantee.
-- **Send smaller snapshots.** The full process list goes to Applications and Processes; other pages retain the process count but avoid parsing hundreds of unused rows each second. Switching pages fetches fresh rows immediately.
-- **Make local tests reliable.** The Qt test suites use a private runtime directory, so a developer's running background monitor cannot change their assertions.
+When your computer feels slow, Summary now explains sustained high CPU or memory
+readings and gives you a route to inspect running applications. A brief spike
+won't trigger the guidance. Missing, paused or stale samples won't be presented
+as a diagnosis, and Task Manager never picks an application to close for you.
 
-## Install or upgrade
+The guidance uses at least ten seconds of valid readings at 90% or higher. It is
+an indication of sustained use, not proof of a bottleneck. The existing normal
+close and confirmed force-quit workflow remains available in Applications.
 
-On Omarchy x86_64, install or upgrade from the Stable, RC or Edge package channel:
+This release also corrects our package metadata and release process. Task Manager
+is a source-built Qt app, so new packages follow **Edge → RC → Stable** alongside
+compatible libraries. Build artifacts now carry Qt/library versions and full
+package build information. Publishing requires an explicit workflow action.
+
+## Availability and installation
+
+| Distribution | v0.1.2 status |
+| --- | --- |
+| GitHub release | Pending publication |
+| Omarchy Edge | 0.1.2-1 publication not yet verified |
+| Omarchy RC | 0.1.2-1 publication not yet verified |
+| Omarchy Stable | 0.1.2-1 publication not yet verified |
+
+Update this table from the [release checklist](docs/RELEASE_CHECKLIST.md) at
+publication and promotion time. A GitHub release or merged package PR does not
+establish channel availability. Normal installation uses your selected channel:
 
 ```bash
 sudo pacman -Syu omarchy-task-manager
 ```
 
-[Version 0.1.1-1 is live in all three channels](https://github.com/omacom/omarchy-pkgs/pull/594#issuecomment-5838328794). Alternatively, download the [x86_64 GitHub release package](https://github.com/tcballard/omarchy-task-manager/releases/download/v0.1.1/omarchy-task-manager-0.1.1-1-x86_64.pkg.tar.zst) and [SHA256SUMS](https://github.com/tcballard/omarchy-task-manager/releases/download/v0.1.1/SHA256SUMS) into the same directory for manual installation:
+That command installs the version your channel currently serves, which may still
+be v0.1.1. Do not manually install an Edge/rolling-Arch binary onto an older Qt
+snapshot solely because the source release exists.
 
-```bash
-sha256sum --ignore-missing --check SHA256SUMS &&
-sudo pacman -U ./omarchy-task-manager-0.1.1-1-x86_64.pkg.tar.zst
-```
+## Verification and rollback
 
-Open **Task Manager** from the launcher. [Super + Alt + Delete](https://github.com/tcballard/omarchy-task-manager/blob/v0.1.1/docs/GUIDE.md#keyboard-shortcut) is an optional one-time shortcut setup.
+See [the v0.1.2 record](docs/VERIFICATION-0.1.2.md) for current checks and remaining
+gates. Historical XPS acceptance of v0.1.0 is not acceptance of this build. Live
+Summary layout, v0.1.1 sampling changes and target-channel package validation
+remain pending. No new screenshot is claimed.
 
-The [Omarchy package PR](https://github.com/omacom/omarchy-pkgs/pull/594) merged and its [publication run](https://github.com/omacom/omarchy-pkgs/actions/runs/36179238474) succeeded on 25 September 2026. Normal system updates now deliver this version from the selected channel.
-
-## Verification and limits
-
-The v0.1.0 release was accepted on Tom's XPS for Summary, background monitoring, logout/reboot startup and GPU readings. The v0.1.1 changes have contributor testing on an NVIDIA desktop and portable tests; **the new GPU sampling path and page transitions still need a v0.1.1 XPS check**. AMD/Intel hardware and ARM are not covered by the contributor's measurements. NVIDIA streaming trades roughly 25 MiB of resident memory for lower CPU use while the window is open. Readings can be up to one second old at the fastest refresh setting.
-
-The release workflow builds on Ubuntu and Arch, checks the package lifecycle, and publishes only after those jobs pass on the release commit. `BUILD-INFO.txt` identifies the commit and workflow run; `SHA256SUMS` covers the assets. The per-user background service and local state format are unchanged.
-
-Before removal or downgrade, turn Background monitoring off or run:
-
-```bash
-systemctl --user disable --now omarchy-task-manager-monitor.service
-```
-
-Preferences and application history survive removal. A verified v0.1.0 package remains available for rollback.
-
-[Changes since v0.1.0](https://github.com/tcballard/omarchy-task-manager/compare/v0.1.0...v0.1.1)
+No preference/history schema changes are included. Before removal or downgrade,
+turn off Background monitoring; retain preferences and history. Follow the
+[removal guidance](docs/GUIDE.md#removal) and use a package compatible with the
+installed channel's libraries.

@@ -35,6 +35,8 @@ makepkg -si
 
 Run `makepkg` as your normal user. After installation, find **Task Manager** in the app launcher or run `omarchy-task-manager`. `scripts/package-source.sh` regenerates the source tarball and recipe after changes. No shortcut, existing config, or btop package is overwritten. Optional `gdb` enables live core dumps; optional `nvidia-utils` supplies NVIDIA device counters.
 
+New releases follow Edge → RC → Stable with their compatible library snapshot. GitHub assets and package-channel publication are separate; check the [release checklist](RELEASE_CHECKLIST.md) before claiming availability or manually installing a package built against different libraries.
+
 ### Keyboard shortcut
 
 Our default shortcut is **Super + Alt + Delete**: open Task Manager, or focus it if already running. It never ends an application directly. Super is the Windows/logo key on most keyboards.
