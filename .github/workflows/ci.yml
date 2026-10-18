@@ -22,6 +22,8 @@ jobs:
       - run: rustup toolchain install 1.98.1 --profile minimal --component clippy --component rustfmt
       - run: python3 tests/release_metadata.py
       - run: python3 tests/packaging.py
+      - name: Test guarded installation and rollback without host changes
+        run: bash tests/test-install.sh
       - run: cargo fmt --check && cargo clippy --locked --all-targets -- -D warnings && cargo test --locked
       - run: cmake -S . -B build -G Ninja -DCMAKE_BUILD_TYPE=Release && cmake --build build
       - run: desktop-file-validate packaging/io.github.tcballard.TaskManager.desktop
