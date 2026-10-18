@@ -3,6 +3,11 @@
 A GitHub release, an Edge package, and RC/Stable promotion are separate events.
 Task Manager is built against Qt: keep Omacom's normal **Edge → RC → Stable**
 promotion with its library snapshot. Never restore `release_ring: "fast"`.
+
+For the existing unpublished CI package, use the [v0.1.2 test installer](TESTING-0.1.2.md)
+and its rollback. Its local preflight is separate from the snapshot and live
+acceptance gates below.
+
 Policy source: [omarchy-pkgs #904](https://github.com/omacom/omarchy-pkgs/pull/904)
 and [package policy](https://github.com/omacom/omarchy-pkgs#what-can-be-on-the-fast-ring).
 

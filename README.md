@@ -38,6 +38,8 @@ Open **Task Manager** from the app launcher, or run `omarchy-task-manager`.
 
 v0.1.2 is in preparation. New versions reach **Edge → RC → Stable** with compatible libraries; a GitHub release does not mean every channel has it. See the [release checklist and channel status](docs/RELEASE_CHECKLIST.md).
 
+For the unpublished **v0.1.2 XPS test build**, use the [guarded test installer](docs/TESTING-0.1.2.md). It verifies the exact CI artifact, checks the installed Qt/runtime, and saves a local rollback before changing the package. It stops if this rolling Arch binary cannot run on your current snapshot.
+
 ### Keyboard shortcut
 
 You can add **Super + Alt + Delete** to open Task Manager or focus it if it's already running. Follow the [one-time shortcut setup](docs/GUIDE.md#keyboard-shortcut); installation leaves your personal bindings alone.

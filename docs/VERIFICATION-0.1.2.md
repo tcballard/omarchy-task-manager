@@ -41,3 +41,12 @@ This is publication evidence only; it does not certify Qt compatibility.
 Historical evidence remains in `VERIFICATION.md` and `HARDENING.md`; it is not
 rerun evidence for v0.1.2. See [the checklist](RELEASE_CHECKLIST.md) for exact
 build/snapshot identity fields and the announcement gate.
+
+## Test installation follow-up — 18 October 2026
+
+The [test-build record](TESTING-0.1.2.md#inspected-artifact-18-october-2026)
+records the actual downloaded artifact, checksums, source merge identity and
+runtime requirements from successful run 38545446855. The guarded installer and
+rollback tests are separate from the original application build. No XPS access
+was available here; current XPS compatibility, live acceptance, target snapshot
+validation and publication remain pending.
