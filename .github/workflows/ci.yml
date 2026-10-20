@@ -24,6 +24,8 @@ jobs:
       - run: python3 tests/packaging.py
       - name: Test guarded installation and rollback without host changes
         run: bash tests/test-install.sh
+      - name: Test QtSvg security evidence policy without host changes
+        run: bash tests/qtsvg-security.sh
       - run: cargo fmt --check && cargo clippy --locked --all-targets -- -D warnings && cargo test --locked
       - run: cmake -S . -B build -G Ninja -DCMAKE_BUILD_TYPE=Release && cmake --build build
       - run: desktop-file-validate packaging/io.github.tcballard.TaskManager.desktop
@@ -80,6 +82,11 @@ jobs:
           useradd -m builder
           chown -R builder:builder "$GITHUB_WORKSPACE"
           runuser -u builder -- bash -c 'cd "$1/dist" && makepkg --noconfirm' _ "$GITHUB_WORKSPACE"
+      - name: Validate installed QtSvg and ordinary SVG icon rendering
+        shell: bash
+        run: |
+          set -euo pipefail
+          QT_QPA_PLATFORM=offscreen ./scripts/check-qtsvg.sh --icon-probe ./dist/src/build/icon-test | tee dist/QTSVG-VALIDATION.txt
       - name: Repeat Arch live worker pause/resume regression
         run: runuser -u builder -- ctest --test-dir dist/src/build -R "^bridge$" --repeat until-fail:20 --output-on-failure
       - name: Sanitize bridge lifetime on Arch
@@ -160,7 +167,7 @@ jobs:
           packages=(dist/omarchy-task-manager-[0-9]*.pkg.tar.zst)
           bsdtar -xOf "${packages[0]}" .BUILDINFO > dist/PACKAGE-BUILDINFO.txt
           cd dist
-          sha256sum omarchy-task-manager-*.pkg.tar.zst omarchy-task-manager-*.tar.gz PKGBUILD BUILD-INFO.txt PACKAGE-BUILDINFO.txt namcap.txt package-files.txt > SHA256SUMS
+          sha256sum omarchy-task-manager-*.pkg.tar.zst omarchy-task-manager-*.tar.gz PKGBUILD BUILD-INFO.txt PACKAGE-BUILDINFO.txt QTSVG-VALIDATION.txt namcap.txt package-files.txt > SHA256SUMS
       - uses: actions/upload-artifact@v4
         with:
           name: arch-development-package
@@ -171,6 +178,7 @@ jobs:
             dist/PKGBUILD
             dist/BUILD-INFO.txt
             dist/PACKAGE-BUILDINFO.txt
+            dist/QTSVG-VALIDATION.txt
             dist/SHA256SUMS
             dist/namcap.txt
             dist/package-files.txt

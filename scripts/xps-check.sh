@@ -7,7 +7,9 @@ hyprctl version || true
 printf '\nTheme:\n'
 cat "${XDG_CONFIG_HOME:-$HOME/.config}/omarchy/current/theme.name" 2>/dev/null || true
 printf '\nQt runtime:\n'
-pacman -Q qt6-base qt6-declarative qt6-wayland || true
+pacman -Q qt6-base qt6-declarative qt6-wayland qt6-svg || true
+printf '\nQtSvg security: UNVERIFIED by version collection alone.\n'
+printf 'Run scripts/check-qtsvg.sh --icon-probe ./build/icon-test; see docs/QTSVG_SECURITY.md.\n'
 printf '\nTask Manager:\n'
 pacman -Q omarchy-task-manager || true
 printf '\nComplete the interactive XPS checklist in README.md. This script only collects versions.\n'

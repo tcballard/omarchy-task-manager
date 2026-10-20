@@ -23,7 +23,7 @@ cmake --build build -j 4
 ./build/omarchy-task-manager
 ```
 
-The build places the GUI and its Rust worker beside one another. Keep them together. Qt 6.4+ is supported; this workspace uses Qt 6.4.2. Cargo.lock pins dependencies. Rustup users select the checked-in 1.98.1 toolchain; system Rust/Cargo can also build it.
+The build places the GUI and its Rust worker beside one another. Keep them together. The functional build minimum is Qt 6.4; security support additionally requires a patched QtSvg runtime. For CVE-2026-8168 use final QtSvg 6.8.9+ within 6.8, 6.11.2+ within 6.11, 6.12.0+ in Qt 6, or an exact vendor package with the complete fix set. Older/manual builds are unverified without that evidence; see [QtSvg requirements and validation](QTSVG_SECURITY.md). The historical Qt 6.4.2 workspace result does not establish security support. Cargo.lock pins dependencies. Rustup users select the checked-in 1.98.1 toolchain; system Rust/Cargo can also build it.
 
 To build an Arch package from the checkout, generate its checksummed source tarball and recipe:
 
@@ -104,6 +104,7 @@ Actions in automated tests target disposable children and temporary startup file
 
 1. Run `scripts/xps-check.sh` and record versions. Build/install as a normal user. Open through the launcher, reopen to focus, test drag/float placement on each monitor, Escape and dismissal on blur.
 2. Switch dark/light/Familiar themes while open. Check text, controls, selection, scaling and scrolling.
+   Record the [QtSvg runtime security report](QTSVG_SECURITY.md) and its exit status, then confirm normal external application and theme SVG icons remain visible in Summary/Applications. Headless fixture rendering and physical desktop observations are separate results.
 3. Inspect a browser, an editor with unsaved text, and terminal-launched jobs. Close should preserve save prompts. Test termination/restart only on disposable work.
 4. Launch `sleep 300`; verify cancellation, suspend/resume, nice, affinity and termination against that PID. Do not test these on the desktop shell.
 5. Compare CPU/RSS/disk/network/GPU over equivalent intervals with btop and driver tools. Test suspend/resume and device/network changes.

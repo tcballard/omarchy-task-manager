@@ -25,6 +25,11 @@ and [package policy](https://github.com/omacom/omarchy-pkgs#what-can-be-on-the-f
 - [ ] Record the build environment. CI records the Qt packages and full package
       `.BUILDINFO`, but uses rolling Arch, **not** an Omarchy channel snapshot.
       Its success does not prove Edge, RC or Stable compatibility.
+- [ ] Retain checksummed `QTSVG-VALIDATION.txt` from Arch CI. Require its
+      security result and ordinary absolute/theme SVG pixel checks to pass;
+      review any vendor-backport attestation and complete fix-set source. Run
+      `bash tests/qtsvg-security.sh` for the evidence-policy regression checks.
+      This is CI runtime evidence, not target/XPS evidence.
 - [ ] Complete live acceptance for changed behaviour (v0.1.2: Summary guidance,
       pause/resume and layout, plus outstanding v0.1.1 sampling checks). Record
       `omarchy-version`, architecture, Qt versions and source/package identity.
@@ -52,6 +57,12 @@ and [package policy](https://github.com/omacom/omarchy-pkgs#what-can-be-on-the-f
 
       These commands describe an environment; attach build/install/test results
       as well. Record Qt versions from both build and installed target.
+- [ ] On **each installed target snapshot**, run the [QtSvg security check](QTSVG_SECURITY.md)
+      with that target's built `icon-test`. Retain package epoch/version/pkgrel,
+      runtime file ownership/hashes, upstream-fixed or reviewed complete vendor
+      backport status, report and exit status. Confirm ordinary external/theme
+      SVGs also appear correctly in the live app. Record absent physical XPS or
+      older-runtime evidence as **unverified**, never infer it from build Qt.
 - [ ] Install and launch on that snapshot; exercise Summary → Applications,
       normal close/save prompt and force-quit cancellation with disposable apps.
       Check background monitoring, upgrade, removal and preference preservation.
@@ -90,6 +101,7 @@ across the board” only after all three databases verify the intended version.
 | RC 0.1.2-1 | Not yet verified as published |
 | Stable 0.1.2-1 | Not yet verified as published |
 | Target snapshot build / live acceptance | Pending; no Omarchy desktop in preparation environment |
+| QtSvg security / normal SVGs on target XPS | Unverified; no physical XPS access (issue #27) |
 
 See [v0.1.2 verification](VERIFICATION-0.1.2.md) for dated evidence. Source release
 preparation does not imply package submission, signing or promotion.
