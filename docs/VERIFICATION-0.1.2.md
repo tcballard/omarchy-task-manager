@@ -50,3 +50,38 @@ runtime requirements from successful run 38545446855. The guarded installer and
 rollback tests are separate from the original application build. No XPS access
 was available here; current XPS compatibility, live acceptance, target snapshot
 validation and publication remain pending.
+
+## QtSvg security validation follow-up — 20 October 2026
+
+Scope: issue #27, based on release-preparation head
+`eccffc60f24c4348e30639259dc80fe101345e20`. See
+[QtSvg policy, upstream advisory and package evidence](QTSVG_SECURITY.md).
+This change adds release-validation tooling; the pinned installer/artifact from
+18 October remains unchanged and does not include the new check.
+
+Reproduced on Ubuntu 24.04 x86_64 in this preparation workspace:
+
+| Check | Result | Boundary |
+| --- | --- | --- |
+| `bash tests/qtsvg-security.sh` | 27 fixture scenarios passed | Command mocks, no real Qt/package execution |
+| `bash tests/test-install.sh` | All 16 scenarios passed | Existing installer, isolated command mocks |
+| `python3 tests/release_metadata.py` | Passed | Version remains 0.1.2 |
+| `python3 tests/packaging.py` | Passed | Reproducible source/recipe, normal channel metadata |
+| Shell syntax and `git diff --check` | Passed | Changed shell files and patch whitespace |
+| `scripts/check-qtsvg.sh --icon-probe ./build/icon-test` | Exit 2, **unverified** | No built probe, Qt 6 toolchain or pacman in workspace |
+| Ordinary SVG pixel test on real Qt | Pending CI | New CMake `icons` test; no local renderer |
+| Installed target XPS QtSvg version/release/backport | **Unverified** | Physical machine not accessed |
+| XPS external/theme SVG desktop rendering | **Unverified** | No physical desktop observation |
+| Edge/RC/Stable installed QtSvg runtime | **Unverified** | Arch package listing is not snapshot evidence |
+
+CI now runs the ordinary icon test on Ubuntu and Arch, and requires the Arch
+runtime security collector to pass. It archives `QTSVG-VALIDATION.txt` alongside
+build/package evidence and includes it in `SHA256SUMS`. Record the actual new
+run and result separately; wiring a check is not a passing execution result.
+Ubuntu rendering proves rendering only; its vendor backport status is not
+inferred from the older Qt version. No system Qt libraries were installed or
+replaced in this workspace. No CVE reproducer was run and no release was made.
+
+**Release result for the physical v0.1.2 target: UNVERIFIED.** Keep issue #27
+open until its installed-package/fix provenance and normal SVG desktop results
+are recorded. A build binary importing Qt 6.12 symbols does not meet that gate.

@@ -77,4 +77,8 @@ Usage history stays local and is recorded while Task Manager is sampling. GPU re
 
 [Build and development guide](docs/GUIDE.md) · [Report a bug](https://github.com/tcballard/omarchy-task-manager/issues) · [Release notes](RELEASE_NOTES.md)
 
+Manual builds retain a functional Qt 6.4 minimum and require a patched QtSvg
+runtime. See [QtSvg security requirements and validation](docs/QTSVG_SECURITY.md)
+for fixed branches and the vendor-backport exception.
+
 MIT licensed. [Credits](CREDITS.md). Made by [Tom Ballard](https://github.com/tcballard).

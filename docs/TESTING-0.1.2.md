@@ -82,6 +82,10 @@ Open Task Manager from the launcher and follow
 [the live XPS checklist](GUIDE.md#live-xps-acceptance). Record:
 
 - Omarchy version/channel, Qt versions and the workspace's package identity.
+- Installed QtSvg package version/release and upstream fix or complete vendor
+  backport evidence using the [QtSvg runtime check](QTSVG_SECURITY.md), plus normal
+  external/theme SVGs in the live application. The pinned installer predates this
+  check and does not perform it. Its Qt 6.12 ABI gate is not this security result.
 - Summary guidance under sustained CPU/memory load and pause/resume behaviour.
 - Summary → Applications, searching, layout/scale and theme behaviour.
 - Normal close of a disposable unsaved document, save-prompt cancellation and
