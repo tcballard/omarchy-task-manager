@@ -332,7 +332,7 @@ pub fn float_panel(width: i64, height: i64) -> Result<String, String> {
     }
     let selector = format!("address:{}", window.address);
     let result = hypr(&format!(
-        "/dispatch hl.dsp.window.float({{ window = \"{selector}\", action = \"set\" }})"
+        "/dispatch hl.dsp.window.float({{ window = \"{selector}\", action = \"on\" }})"
     ))?;
     let lua_dispatch = result.trim() == "ok";
     if !lua_dispatch {

@@ -89,8 +89,10 @@ with tempfile.TemporaryDirectory(prefix="task-manager-test-") as tmp:
                 positioning = [r for r in requests[before:] if r.startswith("/dispatch")]
                 assert positioning and all("address:0xcafe" in r for r in positioning)
                 if supported:
+                    assert '/dispatch hl.dsp.window.float({ window = "address:0xcafe", action = "on" })' in positioning
                     assert any("hl.dsp.window.resize" in r and "x = 760, y = 540" in r for r in positioning)
                 else:
+                    assert "/dispatch setfloating address:0xcafe" in positioning
                     assert "/dispatch resizewindowpixel exact 760 540,address:0xcafe" in positioning
             float_window = None
             lua_supported = True
